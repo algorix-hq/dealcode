@@ -63,11 +63,17 @@ and `capacity` (a `bigint`: the number of encodable counters,
 `min(radix^maxLength, 2^63)`). The preset alphabet strings are exported as
 `ALPHABETS`.
 
-`decode` throws `InvalidCodeError` for anything this codec never issued;
-`encode` throws `CounterRangeError` outside `[0, codec.capacity)` (and for
-non-integer or unsafe `number` inputs — pass a `bigint` for large counters).
-Configuration mistakes throw `ConfigError` at construction. All errors extend
-`DealcodeError`.
+`decode` throws `InvalidCodeError` for **malformed** input — wrong length,
+characters outside the alphabet, or a value outside the issuable range. A
+*well-formed* code always decodes to some counter, whether or not that counter
+was ever issued (inherent to a permutation — see SPEC §7). Treat decode as
+parsing, not proof of existence: look the counter up before acting on it, and
+note that a one-character typo in a valid code can resolve to a *different*
+valid counter — add rate limiting (and, for human-typed flows, an existence
+check or your own check digit). `encode` throws `CounterRangeError` outside
+`[0, codec.capacity)` (and for non-integer or unsafe `number` inputs — pass a
+`bigint` for large counters). Configuration mistakes throw `ConfigError` at
+construction. All errors extend `DealcodeError`.
 
 ## Using it with your database
 
@@ -99,7 +105,7 @@ async function createOrder(db) {
 async function findOrder(db, code) {
   let n;
   try {
-    n = codec.decode(code);           // no DB roundtrip for obviously-bad codes
+    n = codec.decode(code);           // malformed codes never reach the DB
   } catch (err) {
     if (err instanceof InvalidCodeError) return null;
     throw err;

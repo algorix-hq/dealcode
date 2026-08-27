@@ -59,10 +59,17 @@ order, _ := dealcode.New(dealcode.Config{Key: key, Alphabet: "dec", MinLength: 8
 fixed, _ := dealcode.New(dealcode.Config{Key: key, MinLength: 16, MaxLength: 16}) // constant-length hex
 ```
 
-`Decode` returns an error wrapping `ErrInvalidCode` for anything this codec
-never issued; `Encode` returns an error wrapping `ErrRange` outside
-`[0, codec.Capacity())`; `New` returns an error wrapping `ErrConfig` for any
-invalid configuration. Classify with `errors.Is`.
+`Decode` returns an error wrapping `ErrInvalidCode` for **malformed** input —
+wrong length, characters outside the alphabet, or a value outside the
+issuable range. A *well-formed* code always decodes to some counter, whether
+or not that counter was ever issued (inherent to a permutation — see SPEC
+§7). Treat decode as parsing, not proof of existence: look the counter up
+before acting on it, and note that a one-character typo in a valid code can
+resolve to a *different* valid counter — add rate limiting (and, for
+human-typed flows, an existence check or your own check digit). `Encode`
+returns an error wrapping `ErrRange` outside `[0, codec.Capacity())`; `New`
+returns an error wrapping `ErrConfig` for any invalid configuration. Classify
+with `errors.Is`.
 
 ## Using it with your database
 
@@ -99,7 +106,7 @@ func createOrder(ctx context.Context, db *sql.DB) (string, error) {
 }
 
 func findOrder(ctx context.Context, db *sql.DB, code string) (*Order, error) {
-	n, err := codec.Decode(code) // no DB roundtrip for obviously-bad codes
+	n, err := codec.Decode(code) // malformed codes never reach the DB
 	if errors.Is(err, dealcode.ErrInvalidCode) {
 		return nil, nil
 	}

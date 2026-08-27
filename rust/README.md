@@ -56,8 +56,15 @@ let fixed = Dealcode::builder(key).min_length(16).max_length(16).build()?;
 // constant-length hex
 ```
 
-`decode` returns `Err(Error::InvalidCode)` for anything this codec never
-issued; `encode` returns `Err(Error::Range)` outside `[0, codec.capacity())`.
+`decode` returns `Err(Error::InvalidCode)` for **malformed** input — wrong
+length, characters outside the alphabet, or a value outside the issuable
+range. A *well-formed* code always decodes to some counter, whether or not
+that counter was ever issued (inherent to a permutation — see SPEC §7).
+Treat decode as parsing, not proof of existence: look the counter up before
+acting on it, and note that a one-character typo in a valid code can resolve
+to a *different* valid counter — add rate limiting (and, for human-typed
+flows, an existence check or your own check digit).
+`encode` returns `Err(Error::Range)` outside `[0, codec.capacity())`.
 Invalid configuration is rejected at build time with `Err(Error::Config)`.
 All three are variants of `dealcode::Error`, which implements
 `std::error::Error`.
@@ -91,7 +98,7 @@ client.execute("INSERT INTO orders (id, code) VALUES ($1, $2)", &[&n, &code])?;
 
 // on lookup:
 fn find_order(client: &mut Client, codec: &Dealcode, code: &str) -> Option<Row> {
-    let n = codec.decode(code).ok()?;   // no DB roundtrip for obviously-bad codes
+    let n = codec.decode(code).ok()?;   // malformed codes never reach the DB
     client.query_opt("SELECT * FROM orders WHERE id = $1", &[&(n as i64)]).ok()?
 }
 ```

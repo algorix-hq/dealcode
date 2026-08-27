@@ -47,9 +47,16 @@ order  = Dealcode(key, "dec", min_length=8, domain="orders")  # digits only
 fixed  = Dealcode(key, "hex", min_length=16, max_length=16)   # constant-length
 ```
 
-`decode` raises `InvalidCodeError` for anything this codec never issued;
-`encode` raises `RangeError` outside `[0, codec.capacity)`. All errors subclass
-`DealcodeError` (a `ValueError`).
+`decode` raises `InvalidCodeError` for **malformed** input — wrong length,
+characters outside the alphabet, or a value outside the issuable range.
+A *well-formed* code always decodes to some counter, whether or not that
+counter was ever issued (inherent to a permutation — see SPEC §7). Treat
+decode as parsing, not proof of existence: look the counter up before acting
+on it, and note that a one-character typo in a valid code can resolve to a
+*different* valid counter — add rate limiting (and, for human-typed flows, an
+existence check or your own check digit). `encode` raises `RangeError`
+outside `[0, codec.capacity)`. All errors subclass `DealcodeError`
+(a `ValueError`).
 
 ## Using it with your database
 
@@ -80,7 +87,7 @@ def create_order(conn) -> str:
 
 def find_order(conn, code: str):
     try:
-        n = codec.decode(code)          # no DB roundtrip for obviously-bad codes
+        n = codec.decode(code)          # malformed codes never reach the DB
     except InvalidCodeError:
         return None
     return conn.execute(text("SELECT * FROM orders WHERE id = :id"), {"id": n}).first()
