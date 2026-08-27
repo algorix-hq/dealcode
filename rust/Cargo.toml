@@ -1,0 +1,18 @@
+[package]
+name = "dealcode"
+version = "1.0.0"
+edition = "2021"
+rust-version = "1.75"
+license = "MIT"
+description = "Collision-free, random-looking codes from a database counter, via FF1 format-preserving encryption (dealcode spec v1)."
+keywords = ["fpe", "ff1", "codes", "coupon", "id"]
+categories = ["cryptography", "encoding"]
+readme = "README.md"
+
+[dependencies]
+aes = "0.8"
+sha2 = "0.10"
+
+[dev-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
