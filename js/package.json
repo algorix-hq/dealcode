@@ -43,7 +43,7 @@
     "build:esm": "tsc -p tsconfig.esm.json && node -e \"require('node:fs').writeFileSync('dist/esm/package.json', JSON.stringify({type:'module'}))\"",
     "build:cjs": "tsc -p tsconfig.cjs.json && node -e \"require('node:fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}))\"",
     "clean": "node -e \"require('node:fs').rmSync('dist', {recursive:true, force:true})\"",
-    "test": "node --test \"test/*.test.*\""
+    "test": "node --test test/*.test.mjs test/*.test.cjs"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",
