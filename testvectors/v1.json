@@ -1,0 +1,1169 @@
+{
+  "spec": "dealcode/v1",
+  "configs": [
+    {
+      "name": "hex-default",
+      "alphabet": "hex",
+      "min_length": 6,
+      "max_length": 15,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "c4334d"
+        },
+        {
+          "n": "1",
+          "code": "38fa1e"
+        },
+        {
+          "n": "2",
+          "code": "f3afe1"
+        },
+        {
+          "n": "7",
+          "code": "15acd6"
+        },
+        {
+          "n": "15",
+          "code": "f84546"
+        },
+        {
+          "n": "16",
+          "code": "87341b"
+        },
+        {
+          "n": "17",
+          "code": "8e92cc"
+        },
+        {
+          "n": "42",
+          "code": "4b71b7"
+        },
+        {
+          "n": "16777215",
+          "code": "053ba0"
+        },
+        {
+          "n": "16777216",
+          "code": "c6a4d3c"
+        },
+        {
+          "n": "16777217",
+          "code": "3bee5fd"
+        },
+        {
+          "n": "268435455",
+          "code": "e572fd2"
+        },
+        {
+          "n": "268435456",
+          "code": "3e292cea"
+        },
+        {
+          "n": "4294967295",
+          "code": "87b61660"
+        },
+        {
+          "n": "1152921504606846975",
+          "code": "afd895cf6f09967"
+        }
+      ],
+      "invalid_codes": [
+        "00000",
+        "0000000000000000",
+        "!00000",
+        "31c9c05",
+        "0c8d455"
+      ],
+      "normalize": [
+        {
+          "input": "C2E3C4",
+          "n": "123456"
+        }
+      ]
+    },
+    {
+      "name": "hex-domain-orders",
+      "alphabet": "hex",
+      "min_length": 6,
+      "max_length": 15,
+      "domain": "orders",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "2cd653"
+        },
+        {
+          "n": "1",
+          "code": "6bbefa"
+        },
+        {
+          "n": "2",
+          "code": "4fa862"
+        },
+        {
+          "n": "7",
+          "code": "973fdb"
+        },
+        {
+          "n": "15",
+          "code": "de17e5"
+        },
+        {
+          "n": "16",
+          "code": "61c78b"
+        },
+        {
+          "n": "17",
+          "code": "fe0e75"
+        },
+        {
+          "n": "42",
+          "code": "2b3b3c"
+        },
+        {
+          "n": "16777215",
+          "code": "16fbab"
+        },
+        {
+          "n": "16777216",
+          "code": "f5f27d7"
+        },
+        {
+          "n": "16777217",
+          "code": "f45da2e"
+        },
+        {
+          "n": "268435455",
+          "code": "7711477"
+        },
+        {
+          "n": "268435456",
+          "code": "e6f54b05"
+        },
+        {
+          "n": "4294967295",
+          "code": "f2b03698"
+        },
+        {
+          "n": "1152921504606846975",
+          "code": "0e989121ce4b011"
+        }
+      ],
+      "invalid_codes": [
+        "00000",
+        "0000000000000000",
+        "!00000",
+        "d77a766",
+        "eed960c"
+      ],
+      "normalize": [
+        {
+          "input": "CA05C1",
+          "n": "123456"
+        }
+      ]
+    },
+    {
+      "name": "hex-aes256",
+      "alphabet": "hex",
+      "min_length": 6,
+      "max_length": 15,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "692bb5"
+        },
+        {
+          "n": "1",
+          "code": "311d9d"
+        },
+        {
+          "n": "2",
+          "code": "52f757"
+        },
+        {
+          "n": "7",
+          "code": "7070e7"
+        },
+        {
+          "n": "15",
+          "code": "41c531"
+        },
+        {
+          "n": "16",
+          "code": "d3bb1d"
+        },
+        {
+          "n": "17",
+          "code": "7d9c0a"
+        },
+        {
+          "n": "42",
+          "code": "6f604a"
+        },
+        {
+          "n": "16777215",
+          "code": "ca66b9"
+        },
+        {
+          "n": "16777216",
+          "code": "c91bc58"
+        },
+        {
+          "n": "16777217",
+          "code": "3e7df51"
+        },
+        {
+          "n": "268435455",
+          "code": "bf6741d"
+        },
+        {
+          "n": "268435456",
+          "code": "63449e8c"
+        },
+        {
+          "n": "4294967295",
+          "code": "643eee0f"
+        },
+        {
+          "n": "1152921504606846975",
+          "code": "8fc9c34bcf2a9ad"
+        }
+      ],
+      "invalid_codes": [
+        "00000",
+        "0000000000000000",
+        "!00000",
+        "38981a1",
+        "9c41fbf"
+      ],
+      "normalize": [
+        {
+          "input": "BFD713",
+          "n": "123456"
+        }
+      ]
+    },
+    {
+      "name": "hex-string-key",
+      "alphabet": "hex",
+      "min_length": 6,
+      "max_length": 15,
+      "domain": "",
+      "key_string": "correct horse battery staple",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "d48f51"
+        },
+        {
+          "n": "1",
+          "code": "302000"
+        },
+        {
+          "n": "2",
+          "code": "d8a7b3"
+        },
+        {
+          "n": "7",
+          "code": "6dbef0"
+        },
+        {
+          "n": "15",
+          "code": "73ba3e"
+        },
+        {
+          "n": "16",
+          "code": "5be1e5"
+        },
+        {
+          "n": "17",
+          "code": "784ab0"
+        },
+        {
+          "n": "42",
+          "code": "726d05"
+        },
+        {
+          "n": "16777215",
+          "code": "0a5eaf"
+        },
+        {
+          "n": "16777216",
+          "code": "38cf24a"
+        },
+        {
+          "n": "16777217",
+          "code": "edd92c7"
+        },
+        {
+          "n": "268435455",
+          "code": "250dd3a"
+        },
+        {
+          "n": "268435456",
+          "code": "9dcf7c03"
+        },
+        {
+          "n": "4294967295",
+          "code": "53e0f0e0"
+        },
+        {
+          "n": "1152921504606846975",
+          "code": "185453a9e3c84e6"
+        }
+      ],
+      "invalid_codes": [
+        "00000",
+        "0000000000000000",
+        "!00000",
+        "f8f4037",
+        "c790fe5"
+      ],
+      "normalize": [
+        {
+          "input": "FCDC05",
+          "n": "123456"
+        }
+      ]
+    },
+    {
+      "name": "hex-derived-20b-key",
+      "alphabet": "hex",
+      "min_length": 6,
+      "max_length": 15,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f10111213",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "6be99b"
+        },
+        {
+          "n": "1",
+          "code": "70cea9"
+        },
+        {
+          "n": "2",
+          "code": "d7f30a"
+        },
+        {
+          "n": "7",
+          "code": "8ebe70"
+        },
+        {
+          "n": "15",
+          "code": "9ea25f"
+        },
+        {
+          "n": "16",
+          "code": "cf8d9e"
+        },
+        {
+          "n": "17",
+          "code": "fa9c38"
+        },
+        {
+          "n": "42",
+          "code": "7d2546"
+        },
+        {
+          "n": "16777215",
+          "code": "d9362b"
+        },
+        {
+          "n": "16777216",
+          "code": "85890a4"
+        },
+        {
+          "n": "16777217",
+          "code": "7ec6bb7"
+        },
+        {
+          "n": "268435455",
+          "code": "ccc1d8f"
+        },
+        {
+          "n": "268435456",
+          "code": "c30e98f0"
+        },
+        {
+          "n": "4294967295",
+          "code": "3dd37ea3"
+        },
+        {
+          "n": "1152921504606846975",
+          "code": "dbfb5acfd266e43"
+        }
+      ],
+      "invalid_codes": [
+        "00000",
+        "0000000000000000",
+        "!00000",
+        "60be0ef",
+        "b2cbbdc"
+      ],
+      "normalize": [
+        {
+          "input": "34F177",
+          "n": "123456"
+        }
+      ]
+    },
+    {
+      "name": "hex-fixed-16",
+      "alphabet": "hex",
+      "min_length": 16,
+      "max_length": 16,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "e0d6e203eb52f881"
+        },
+        {
+          "n": "1",
+          "code": "9205311342de9182"
+        },
+        {
+          "n": "2",
+          "code": "e465ed1580c78243"
+        },
+        {
+          "n": "7",
+          "code": "65e724b9afb3c4fd"
+        },
+        {
+          "n": "15",
+          "code": "e57d0eb059c19717"
+        },
+        {
+          "n": "16",
+          "code": "0e1358a85bb5f9b3"
+        },
+        {
+          "n": "17",
+          "code": "9c0d36d642805f38"
+        },
+        {
+          "n": "42",
+          "code": "a06e333db55f0dff"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "ab2c3a032f8858b9"
+        }
+      ],
+      "invalid_codes": [
+        "000000000000000",
+        "00000000000000000",
+        "!000000000000000",
+        "5789867aaa5b01a0",
+        "16b622bb07890f3c"
+      ],
+      "normalize": [
+        {
+          "input": "E0DD3583AB122C36",
+          "n": "123456"
+        }
+      ]
+    },
+    {
+      "name": "dec",
+      "alphabet": "dec",
+      "min_length": 6,
+      "max_length": 18,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f1011121314151617",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "372134"
+        },
+        {
+          "n": "1",
+          "code": "128553"
+        },
+        {
+          "n": "2",
+          "code": "120274"
+        },
+        {
+          "n": "7",
+          "code": "931019"
+        },
+        {
+          "n": "9",
+          "code": "592497"
+        },
+        {
+          "n": "10",
+          "code": "357212"
+        },
+        {
+          "n": "11",
+          "code": "888873"
+        },
+        {
+          "n": "42",
+          "code": "827276"
+        },
+        {
+          "n": "999999",
+          "code": "180086"
+        },
+        {
+          "n": "1000000",
+          "code": "5047602"
+        },
+        {
+          "n": "1000001",
+          "code": "6276700"
+        },
+        {
+          "n": "9999999",
+          "code": "3883131"
+        },
+        {
+          "n": "10000000",
+          "code": "72626673"
+        },
+        {
+          "n": "99999999",
+          "code": "10112686"
+        },
+        {
+          "n": "999999999999999999",
+          "code": "599140343576876242"
+        }
+      ],
+      "invalid_codes": [
+        "00000",
+        "0000000000000000000",
+        "!00000",
+        "9586490",
+        "1286223"
+      ],
+      "normalize": []
+    },
+    {
+      "name": "dec-4",
+      "alphabet": "dec",
+      "min_length": 4,
+      "max_length": 6,
+      "domain": "pin",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "6254"
+        },
+        {
+          "n": "1",
+          "code": "6596"
+        },
+        {
+          "n": "2",
+          "code": "1255"
+        },
+        {
+          "n": "7",
+          "code": "0894"
+        },
+        {
+          "n": "9",
+          "code": "3684"
+        },
+        {
+          "n": "10",
+          "code": "2482"
+        },
+        {
+          "n": "11",
+          "code": "8885"
+        },
+        {
+          "n": "42",
+          "code": "6034"
+        },
+        {
+          "n": "9999",
+          "code": "1573"
+        },
+        {
+          "n": "10000",
+          "code": "04891"
+        },
+        {
+          "n": "10001",
+          "code": "84040"
+        },
+        {
+          "n": "99999",
+          "code": "21701"
+        },
+        {
+          "n": "100000",
+          "code": "835393"
+        },
+        {
+          "n": "999999",
+          "code": "053745"
+        }
+      ],
+      "invalid_codes": [
+        "000",
+        "0000000",
+        "!000",
+        "44921",
+        "85153"
+      ],
+      "normalize": []
+    },
+    {
+      "name": "crockford",
+      "alphabet": "crockford",
+      "min_length": 6,
+      "max_length": 12,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "MPZ35A"
+        },
+        {
+          "n": "1",
+          "code": "MQ95FS"
+        },
+        {
+          "n": "2",
+          "code": "MNT0CB"
+        },
+        {
+          "n": "7",
+          "code": "3GY8WW"
+        },
+        {
+          "n": "31",
+          "code": "A2XTK4"
+        },
+        {
+          "n": "32",
+          "code": "E8B1KY"
+        },
+        {
+          "n": "33",
+          "code": "C4GXNJ"
+        },
+        {
+          "n": "42",
+          "code": "7WRSA8"
+        },
+        {
+          "n": "1073741823",
+          "code": "NE1Y6P"
+        },
+        {
+          "n": "1073741824",
+          "code": "NVMGX74"
+        },
+        {
+          "n": "1073741825",
+          "code": "S7D1XXK"
+        },
+        {
+          "n": "34359738367",
+          "code": "C2PWMHC"
+        },
+        {
+          "n": "34359738368",
+          "code": "J2JE45YM"
+        },
+        {
+          "n": "1099511627775",
+          "code": "BEQ83ZTF"
+        },
+        {
+          "n": "1152921504606846975",
+          "code": "XBWY3VA1YTV2"
+        }
+      ],
+      "invalid_codes": [
+        "00000",
+        "0000000000000",
+        "!00000",
+        "2Z2JKPV",
+        "28NXNFQ"
+      ],
+      "normalize": [
+        {
+          "input": "icq784",
+          "n": "123456"
+        }
+      ]
+    },
+    {
+      "name": "base32",
+      "alphabet": "base32",
+      "min_length": 6,
+      "max_length": 12,
+      "domain": "tickets",
+      "key_hex": "000102030405060708090a0b0c0d0e0f1011121314151617",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "V7PTNR"
+        },
+        {
+          "n": "1",
+          "code": "5RSBWK"
+        },
+        {
+          "n": "2",
+          "code": "2J4PIJ"
+        },
+        {
+          "n": "7",
+          "code": "CCNBUC"
+        },
+        {
+          "n": "31",
+          "code": "BONLIK"
+        },
+        {
+          "n": "32",
+          "code": "NEARZD"
+        },
+        {
+          "n": "33",
+          "code": "AV5P6C"
+        },
+        {
+          "n": "42",
+          "code": "CG5YWZ"
+        },
+        {
+          "n": "1073741823",
+          "code": "6NFL24"
+        },
+        {
+          "n": "1073741824",
+          "code": "R4NNYAI"
+        },
+        {
+          "n": "1073741825",
+          "code": "GN6H6OP"
+        },
+        {
+          "n": "34359738367",
+          "code": "OSIWVZF"
+        },
+        {
+          "n": "34359738368",
+          "code": "RW44KHXO"
+        },
+        {
+          "n": "1099511627775",
+          "code": "B7ZFQKYJ"
+        },
+        {
+          "n": "1152921504606846975",
+          "code": "4DYCTNY5KBTD"
+        }
+      ],
+      "invalid_codes": [
+        "AAAAA",
+        "AAAAAAAAAAAAA",
+        "!AAAAA",
+        "PH3JLE7",
+        "AROUZNM"
+      ],
+      "normalize": [
+        {
+          "input": "my57zk",
+          "n": "123456"
+        }
+      ]
+    },
+    {
+      "name": "base58",
+      "alphabet": "base58",
+      "min_length": 5,
+      "max_length": 10,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "HWGVP"
+        },
+        {
+          "n": "1",
+          "code": "EF3kr"
+        },
+        {
+          "n": "2",
+          "code": "ZgDMA"
+        },
+        {
+          "n": "7",
+          "code": "Rngxf"
+        },
+        {
+          "n": "42",
+          "code": "hqN7t"
+        },
+        {
+          "n": "57",
+          "code": "yjZ8d"
+        },
+        {
+          "n": "58",
+          "code": "WzqR8"
+        },
+        {
+          "n": "59",
+          "code": "F5msE"
+        },
+        {
+          "n": "656356767",
+          "code": "ugaLK"
+        },
+        {
+          "n": "656356768",
+          "code": "1hbMk9"
+        },
+        {
+          "n": "656356769",
+          "code": "aigRqe"
+        },
+        {
+          "n": "38068692543",
+          "code": "yy2S6q"
+        },
+        {
+          "n": "38068692544",
+          "code": "uKjwH4J"
+        },
+        {
+          "n": "2207984167551",
+          "code": "7KvJq5m"
+        },
+        {
+          "n": "430804206899405823",
+          "code": "WXV2Rm7FmG"
+        }
+      ],
+      "invalid_codes": [
+        "1111",
+        "11111111111",
+        "!1111",
+        "H6mYrG",
+        "TYpoys"
+      ],
+      "normalize": []
+    },
+    {
+      "name": "base62-long",
+      "alphabet": "base62",
+      "min_length": 4,
+      "max_length": 12,
+      "domain": "short",
+      "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "lyGj"
+        },
+        {
+          "n": "1",
+          "code": "fcuu"
+        },
+        {
+          "n": "2",
+          "code": "EAgO"
+        },
+        {
+          "n": "7",
+          "code": "1GFX"
+        },
+        {
+          "n": "42",
+          "code": "s5N3"
+        },
+        {
+          "n": "61",
+          "code": "4TAR"
+        },
+        {
+          "n": "62",
+          "code": "WtTR"
+        },
+        {
+          "n": "63",
+          "code": "eGsy"
+        },
+        {
+          "n": "14776335",
+          "code": "mbRV"
+        },
+        {
+          "n": "14776336",
+          "code": "wK3DH"
+        },
+        {
+          "n": "14776337",
+          "code": "FCKKY"
+        },
+        {
+          "n": "916132831",
+          "code": "vnjsU"
+        },
+        {
+          "n": "916132832",
+          "code": "GyYk0B"
+        },
+        {
+          "n": "56800235583",
+          "code": "ZmzKbL"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "zCtZoXKhKUn"
+        }
+      ],
+      "invalid_codes": [
+        "000",
+        "0000000000000",
+        "!000",
+        "HP4fA",
+        "gc2Qp",
+        "BP7I6FMgxXBV",
+        "WxK32C5fIrSA"
+      ],
+      "normalize": []
+    },
+    {
+      "name": "base64url",
+      "alphabet": "base64url",
+      "min_length": 4,
+      "max_length": 10,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "cNhe"
+        },
+        {
+          "n": "1",
+          "code": "uDPl"
+        },
+        {
+          "n": "2",
+          "code": "RKz2"
+        },
+        {
+          "n": "7",
+          "code": "Z6VE"
+        },
+        {
+          "n": "42",
+          "code": "HeFc"
+        },
+        {
+          "n": "63",
+          "code": "rGme"
+        },
+        {
+          "n": "64",
+          "code": "4Q9F"
+        },
+        {
+          "n": "65",
+          "code": "HkHP"
+        },
+        {
+          "n": "16777215",
+          "code": "RO6_"
+        },
+        {
+          "n": "16777216",
+          "code": "HhzHX"
+        },
+        {
+          "n": "16777217",
+          "code": "kTvHZ"
+        },
+        {
+          "n": "1073741823",
+          "code": "WnN2a"
+        },
+        {
+          "n": "1073741824",
+          "code": "mw8hUc"
+        },
+        {
+          "n": "68719476735",
+          "code": "Q7l5Wv"
+        },
+        {
+          "n": "1152921504606846975",
+          "code": "MpK3kY6Cx6"
+        }
+      ],
+      "invalid_codes": [
+        "AAA",
+        "AAAAAAAAAAA",
+        "!AAA",
+        "-j5-G",
+        "16QO-"
+      ],
+      "normalize": []
+    },
+    {
+      "name": "custom-consonants",
+      "alphabet": "custom",
+      "min_length": 6,
+      "max_length": 14,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f1011121314151617",
+      "custom_alphabet": "BCDFGHJKLMNPQRSTVWXZ",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "BXWLMQ"
+        },
+        {
+          "n": "1",
+          "code": "LQJGKG"
+        },
+        {
+          "n": "2",
+          "code": "KHZVCN"
+        },
+        {
+          "n": "7",
+          "code": "CCJNLC"
+        },
+        {
+          "n": "19",
+          "code": "KLTQSZ"
+        },
+        {
+          "n": "20",
+          "code": "ZTLFXH"
+        },
+        {
+          "n": "21",
+          "code": "CHXLSC"
+        },
+        {
+          "n": "42",
+          "code": "VBXFCN"
+        },
+        {
+          "n": "63999999",
+          "code": "XNXDPT"
+        },
+        {
+          "n": "64000000",
+          "code": "DDDRBMH"
+        },
+        {
+          "n": "64000001",
+          "code": "GGNFJDW"
+        },
+        {
+          "n": "1279999999",
+          "code": "SKNVPCX"
+        },
+        {
+          "n": "1280000000",
+          "code": "XMMGLPDS"
+        },
+        {
+          "n": "25599999999",
+          "code": "HVHFSMTP"
+        },
+        {
+          "n": "1638399999999999999",
+          "code": "LPJTKFMFFDJHMJ"
+        }
+      ],
+      "invalid_codes": [
+        "BBBBB",
+        "BBBBBBBBBBBBBBB",
+        "!BBBBB",
+        "JRDFWVB",
+        "BXMWHTN"
+      ],
+      "normalize": []
+    },
+    {
+      "name": "hex-fixed-8",
+      "alphabet": "hex",
+      "min_length": 8,
+      "max_length": 8,
+      "domain": "",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "3e292cea"
+        },
+        {
+          "n": "1",
+          "code": "35ce2d1a"
+        },
+        {
+          "n": "2",
+          "code": "c3e4e749"
+        },
+        {
+          "n": "7",
+          "code": "2265db46"
+        },
+        {
+          "n": "15",
+          "code": "7e37fba5"
+        },
+        {
+          "n": "16",
+          "code": "bc9e3eed"
+        },
+        {
+          "n": "17",
+          "code": "ff6053d5"
+        },
+        {
+          "n": "42",
+          "code": "6f46835d"
+        },
+        {
+          "n": "4294967295",
+          "code": "eb9fd998"
+        }
+      ],
+      "invalid_codes": [
+        "0000000",
+        "000000000",
+        "!0000000"
+      ],
+      "normalize": [
+        {
+          "input": "809FF0F6",
+          "n": "123456"
+        }
+      ]
+    }
+  ]
+}
