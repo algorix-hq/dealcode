@@ -1,0 +1,52 @@
+{
+  "name": "dealcode",
+  "version": "1.0.0",
+  "description": "Collision-free, random-looking codes from a counter (FF1 format-preserving encryption, NIST SP 800-38G)",
+  "keywords": [
+    "ff1",
+    "format-preserving-encryption",
+    "fpe",
+    "short-id",
+    "coupon-code",
+    "obfuscation",
+    "counter",
+    "nist-sp-800-38g"
+  ],
+  "license": "MIT",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/cjs/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/esm/index.d.ts",
+        "default": "./dist/esm/index.js"
+      },
+      "require": {
+        "types": "./dist/cjs/index.d.ts",
+        "default": "./dist/cjs/index.js"
+      }
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "npm run build:esm && npm run build:cjs",
+    "build:esm": "tsc -p tsconfig.esm.json && node -e \"require('node:fs').writeFileSync('dist/esm/package.json', JSON.stringify({type:'module'}))\"",
+    "build:cjs": "tsc -p tsconfig.cjs.json && node -e \"require('node:fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}))\"",
+    "clean": "node -e \"require('node:fs').rmSync('dist', {recursive:true, force:true})\"",
+    "test": "node --test \"test/*.test.*\""
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "typescript": "^5.5.0"
+  }
+}
