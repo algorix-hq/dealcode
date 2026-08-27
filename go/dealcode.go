@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"fmt"
 	"math/big"
+	"strings"
 	"unicode/utf8"
 )
 
@@ -94,6 +95,12 @@ func resolveKey(cfg Config) ([]byte, error) {
 	case hasBytes && hasString:
 		return nil, fmt.Errorf("%w: exactly one of Key and KeyString may be set", ErrConfig)
 	case hasString:
+		if !utf8.ValidString(cfg.KeyString) {
+			return nil, fmt.Errorf("%w: KeyString must be valid UTF-8", ErrConfig)
+		}
+		if strings.IndexByte(cfg.KeyString, 0) >= 0 {
+			return nil, fmt.Errorf("%w: KeyString must not contain U+0000", ErrConfig)
+		}
 		sum := sha256.Sum256(append(append([]byte{}, kdfPrefix...), cfg.KeyString...))
 		return sum[:], nil
 	case !hasBytes || len(cfg.Key) == 0:
@@ -130,8 +137,11 @@ func New(cfg Config) (*Codec, error) {
 	if minLength == 0 {
 		minLength = 6
 	}
-	if minLength < 2 {
-		return nil, fmt.Errorf("%w: MinLength must be >= 2, got %d", ErrConfig, cfg.MinLength)
+	// Bound lengths BEFORE any big.Int exponentiation (SPEC §2): 128 is the
+	// structural maximum, and unguarded Exp on attacker-sized lengths would
+	// allocate without limit.
+	if minLength < 2 || minLength > 128 {
+		return nil, fmt.Errorf("%w: MinLength must be in [2, 128], got %d", ErrConfig, cfg.MinLength)
 	}
 	minSpace := new(big.Int).Exp(radixBig, big.NewInt(int64(minLength)), nil)
 	if minSpace.Cmp(big.NewInt(100)) < 0 {
@@ -147,8 +157,8 @@ func New(cfg Config) (*Codec, error) {
 			maxLength++
 		}
 	}
-	if maxLength < minLength {
-		return nil, fmt.Errorf("%w: MaxLength must be >= MinLength (%d), got %d", ErrConfig, minLength, maxLength)
+	if maxLength < minLength || maxLength > 128 {
+		return nil, fmt.Errorf("%w: MaxLength must be in [MinLength (%d), 128], got %d", ErrConfig, minLength, maxLength)
 	}
 	maxSpace := new(big.Int).Exp(radixBig, big.NewInt(int64(maxLength)), nil)
 	if maxSpace.Cmp(codespaceBound) > 0 {
@@ -157,6 +167,9 @@ func New(cfg Config) (*Codec, error) {
 
 	if !utf8.ValidString(cfg.Domain) {
 		return nil, fmt.Errorf("%w: Domain must be valid UTF-8", ErrConfig)
+	}
+	if strings.IndexByte(cfg.Domain, 0) >= 0 {
+		return nil, fmt.Errorf("%w: Domain must not contain U+0000", ErrConfig)
 	}
 	if len(cfg.Domain) > 255 {
 		return nil, fmt.Errorf("%w: Domain must be at most 255 UTF-8 bytes, got %d", ErrConfig, len(cfg.Domain))

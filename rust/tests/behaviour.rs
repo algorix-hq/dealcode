@@ -450,3 +450,33 @@ fn codec_is_cloneable() {
         assert_eq!(codec.encode(n).unwrap(), clone.encode(n).unwrap());
     }
 }
+
+/// Regression tests for the QA round-2 findings (SPEC §2, §2.1).
+#[test]
+fn config_guards_nul_and_absurd_lengths() {
+    use dealcode::{Dealcode, Error};
+    let t0 = std::time::Instant::now();
+    assert!(matches!(
+        Dealcode::builder("k").max_length(usize::MAX).build(),
+        Err(Error::Config(_))
+    ));
+    assert!(matches!(
+        Dealcode::builder("k").min_length(1_000_000_000).build(),
+        Err(Error::Config(_))
+    ));
+    assert!(t0.elapsed().as_millis() < 100, "absurd lengths must fail fast");
+
+    let nul_domain = format!("a{}b", '\u{0}');
+    assert!(matches!(
+        Dealcode::builder("k").domain(nul_domain).build(),
+        Err(Error::Config(_))
+    ));
+    let nul_key = format!("a{}b", '\u{0}');
+    assert!(matches!(
+        Dealcode::builder(nul_key.as_str()).build(),
+        Err(Error::Config(_))
+    ));
+    // legitimate unicode still works
+    let codec = Dealcode::builder("k").domain("\u{d55c}\u{ad6d}\u{c5b4}-ok").build().unwrap();
+    assert_eq!(codec.decode(&codec.encode(42).unwrap()).unwrap(), 42);
+}

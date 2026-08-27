@@ -49,11 +49,30 @@ export interface DealcodeOptions {
   domain?: string;
 }
 
+/**
+ * Rejects U+0000 and unpaired surrogates in string inputs (SPEC.md §2.1) —
+ * silently re-encoding them (Buffer would emit U+FFFD) makes the "same"
+ * input produce different permutations across languages.
+ */
+function assertCleanUnicode(value: string, what: string): void {
+  if (value.includes("\u0000")) {
+    throw new ConfigError(`${what} must not contain U+0000`);
+  }
+  const wellFormed =
+    typeof (value as { isWellFormed?: () => boolean }).isWellFormed === "function"
+      ? value.isWellFormed()
+      : !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value);
+  if (!wellFormed) {
+    throw new ConfigError(`${what} must be valid Unicode (no unpaired surrogates)`);
+  }
+}
+
 /** Key material handling (SPEC.md §2.1). */
 function resolveKey(key: string | Uint8Array): Buffer {
   let material: Buffer;
   let direct: boolean;
   if (typeof key === "string") {
+    assertCleanUnicode(key, "string key material");
     material = Buffer.from(key, "utf8");
     direct = false; // strings are always derived, never auto-decoded
   } else if (key instanceof Uint8Array) {
@@ -140,8 +159,11 @@ export class Dealcode {
     const radix = alpha.chars.length;
     const radixBig = BigInt(radix);
 
-    if (!Number.isInteger(minLength) || minLength < 2) {
-      throw new ConfigError("minLength must be an integer >= 2");
+    // Bound lengths BEFORE computing any BigInt power (SPEC §2): 128 is the
+    // structural maximum, and an unguarded exponent on absurd lengths would
+    // either burn CPU or leak a raw V8 "Maximum BigInt size exceeded" error.
+    if (!Number.isInteger(minLength) || minLength < 2 || minLength > 128) {
+      throw new ConfigError("minLength must be an integer in [2, 128]");
     }
     if (radixBig ** BigInt(minLength) < 100n) {
       throw new ConfigError(
@@ -150,8 +172,8 @@ export class Dealcode {
       );
     }
     const max = maxLength ?? defaultMaxLength(radixBig, minLength);
-    if (!Number.isInteger(max) || max < minLength) {
-      throw new ConfigError("maxLength must be an integer >= minLength");
+    if (!Number.isInteger(max) || max < minLength || max > 128) {
+      throw new ConfigError("maxLength must be an integer in [minLength, 128]");
     }
     if (radixBig ** BigInt(max) > CODESPACE_BOUND) {
       throw new ConfigError(
@@ -161,6 +183,7 @@ export class Dealcode {
     if (typeof domain !== "string") {
       throw new ConfigError("domain must be a string");
     }
+    assertCleanUnicode(domain, "domain");
     const tweak = Buffer.from(TWEAK_PREFIX + domain, "utf8");
     if (tweak.length - TWEAK_PREFIX.length > 255) {
       throw new ConfigError("domain must be at most 255 UTF-8 bytes");

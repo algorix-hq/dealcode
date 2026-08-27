@@ -32,9 +32,14 @@ A dealcode instance ("codec") is defined by:
 |--------------|---------|----------------|-------------|
 | `key`        | bytes or string | — (required) | Any non-empty key material; see §2.1 |
 | `alphabet`   | string  | `"hex"`        | A preset name (§3) or a custom alphabet (§3.2) |
-| `min_length` | integer | `6`            | `min_length ≥ 2` and `radix^min_length ≥ 100` |
-| `max_length` | integer | largest `L` with `radix^L ≤ 2^63 − 1` | `min_length ≤ max_length` and `radix^max_length ≤ 2^128` |
-| `domain`     | string  | `""`           | UTF-8; encoded byte length ≤ 255 |
+| `min_length` | integer | `6`            | `2 ≤ min_length ≤ 128` and `radix^min_length ≥ 100` |
+| `max_length` | integer | largest `L` with `radix^L ≤ 2^63 − 1` | `min_length ≤ max_length ≤ 128` and `radix^max_length ≤ 2^128` |
+| `domain`     | string  | `""`           | valid Unicode (no U+0000, no unpaired surrogates); UTF-8 byte length ≤ 255 |
+
+The explicit `≤ 128` length bound is implied by `radix ≥ 2` and
+`radix^max_length ≤ 2^128`, but implementations MUST check it **before**
+computing any power so that absurd inputs are rejected in O(1) rather than
+after unbounded big-integer work.
 
 `radix` is the number of characters in the alphabet.
 
@@ -81,9 +86,16 @@ base64 blobs, passphrases. All are accepted, with a deterministic rule so
 every language produces the same AES key from the same input:
 
 - **Bytes** of length exactly 16, 24, or 32 → used directly as the AES key.
-- **Bytes** of any other non-zero length → derived (below).
+- **Bytes** of any other non-zero length → derived (below). Byte content is
+  unrestricted.
 - **String** (always, regardless of length or content — a hex-looking string
   is *not* auto-decoded, avoiding ambiguity) → its UTF-8 bytes are derived.
+  String key material MUST be valid Unicode: implementations MUST reject
+  U+0000 and unpaired surrogates (`ConfigError`) rather than silently
+  replacing, truncating, or re-encoding them — the same rule applies to
+  `domain`. (Rationale: languages disagree on how to smuggle such strings
+  into UTF-8, so accepting them would silently produce different permutations
+  per language; and NUL-terminated C APIs cannot represent them at all.)
 - Empty bytes / empty string → `ConfigError`.
 
 Derivation: `AES-256 key = SHA-256( "dealcode/v1/kdf" ‖ material )`, where

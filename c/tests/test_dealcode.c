@@ -642,6 +642,46 @@ static void test_null_handles(void)
     dealcode_free(dc);
 }
 
+
+/* Regression tests for the QA round-2 findings (SPEC section 2.1): string
+ * key material and domains must be valid UTF-8 (invalid sequences and
+ * UTF-8-encoded surrogates rejected, never silently reinterpreted). */
+static void test_utf8_validation(void)
+{
+    dealcode_t *dc = NULL;
+    dealcode_config_t c;
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.domain = "\xff\xfe";
+    CHECK(dealcode_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "utf8: invalid domain bytes rejected");
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.domain = "\xed\xa0\x80"; /* UTF-8-encoded surrogate U+D800 */
+    CHECK(dealcode_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "utf8: encoded surrogate domain rejected");
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "\xc0\xaf"; /* overlong '/' */
+    CHECK(dealcode_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "utf8: overlong key string rejected");
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.domain = "\xed\x9f\xbf\xee\x80\x80"; /* U+D7FF U+E000: valid */
+    CHECK(dealcode_new(&c, &dc) == DEALCODE_OK, "utf8: valid 3-byte domain ok");
+    dealcode_free(dc);
+    dc = NULL;
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.domain = "\xf0\x9f\x98\x80"; /* U+1F600 emoji: valid */
+    CHECK(dealcode_new(&c, &dc) == DEALCODE_OK, "utf8: valid 4-byte domain ok");
+    dealcode_free(dc);
+}
+
 /* ---------------------------------------------------------------------- */
 
 int main(void)
@@ -657,6 +697,7 @@ int main(void)
     test_domain_separation();
     test_strerror();
     test_null_handles();
+    test_utf8_validation();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     if (g_failures != 0) {

@@ -447,8 +447,10 @@ public final class Dealcode {
             int radix = alpha.chars.length();
             BigInteger r = BigInteger.valueOf(radix);
 
-            if (minLength < 2) {
-                throw new ConfigException("minLength must be >= 2, got " + minLength);
+            // 128 is the structural maximum (radix >= 2, radix^maxLength
+            // <= 2^128); checked before any pow so absurd lengths fail in O(1).
+            if (minLength < 2 || minLength > 128) {
+                throw new ConfigException("minLength must be in [2, 128], got " + minLength);
             }
             // radix >= 2, so radix^minLength >= 2^7 = 128 >= 100 whenever
             // minLength >= 7; only small minLength needs the exact check.
@@ -468,10 +470,35 @@ public final class Dealcode {
                 throw new ConfigException(
                         "radix^maxLength must not exceed 2^128: " + radix + "^" + max);
             }
+            requireCleanUnicode(domain, "domain");
             if (domain.getBytes(StandardCharsets.UTF_8).length > 255) {
                 throw new ConfigException("domain must be at most 255 UTF-8 bytes");
             }
             return new Dealcode(aesKey, alpha, minLength, max, domain);
+        }
+
+        /**
+         * Rejects U+0000 and unpaired surrogates (SPEC §2.1) — silently
+         * encoding them (Java would emit '?') makes the "same" input produce
+         * different permutations across languages.
+         */
+        private static void requireCleanUnicode(String value, String what) {
+            if (value.indexOf('\u0000') >= 0) {
+                throw new ConfigException(what + " must not contain U+0000");
+            }
+            for (int i = 0; i < value.length(); i++) {
+                char c = value.charAt(i);
+                if (Character.isHighSurrogate(c)) {
+                    if (i + 1 >= value.length() || !Character.isLowSurrogate(value.charAt(i + 1))) {
+                        throw new ConfigException(
+                                what + " must be valid Unicode (no unpaired surrogates)");
+                    }
+                    i++;
+                } else if (Character.isLowSurrogate(c)) {
+                    throw new ConfigException(
+                            what + " must be valid Unicode (no unpaired surrogates)");
+                }
+            }
         }
 
         /** Key material handling (SPEC §2.1). */
@@ -479,6 +506,7 @@ public final class Dealcode {
             byte[] material;
             boolean direct;
             if (keyString != null) {
+                requireCleanUnicode(keyString, "string key material");
                 material = keyString.getBytes(StandardCharsets.UTF_8);
                 direct = false; // strings are always derived
             } else {

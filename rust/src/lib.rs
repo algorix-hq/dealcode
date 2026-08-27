@@ -170,6 +170,14 @@ impl Key {
         if material.is_empty() {
             return Err(Error::Config("key must not be empty".to_owned()));
         }
+        // SPEC §2.1: string key material must not contain U+0000 (byte
+        // material is unrestricted). Rust strings are always valid UTF-8, so
+        // unpaired surrogates cannot occur here.
+        if !is_bytes && material.contains(&0) {
+            return Err(Error::Config(
+                "string key material must not contain U+0000".to_owned(),
+            ));
+        }
         if is_bytes && matches!(material.len(), 16 | 24 | 32) {
             return Ok(material.to_vec());
         }
@@ -372,8 +380,10 @@ impl Dealcode {
         let r = u128::from(radix);
 
         let min_length = builder.min_length;
-        if min_length < 2 {
-            return Err(Error::Config("min_length must be at least 2".to_owned()));
+        if !(2..=128).contains(&min_length) {
+            return Err(Error::Config(
+                "min_length must be in [2, 128]".to_owned(),
+            ));
         }
         // radix^min_length >= 100; overflow (None) trivially satisfies it.
         let min_ok = u32::try_from(min_length)
@@ -407,6 +417,13 @@ impl Dealcode {
             ));
         }
 
+        // SPEC §2.1: domains must not contain U+0000 (Rust strings are
+        // always valid UTF-8, so unpaired surrogates cannot occur).
+        if builder.domain.as_bytes().contains(&0) {
+            return Err(Error::Config(
+                "domain must not contain U+0000".to_owned(),
+            ));
+        }
         if builder.domain.len() > 255 {
             return Err(Error::Config(
                 "domain must be at most 255 UTF-8 bytes".to_owned(),

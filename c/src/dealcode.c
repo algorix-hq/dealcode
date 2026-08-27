@@ -392,6 +392,46 @@ struct dealcode_st {
     u128 powers[DC_MAX_LENGTH];
 };
 
+/* Validates UTF-8 (RFC 3629: no overlongs, no surrogates, <= U+10FFFF).
+ * SPEC.md §2.1 requires string key material and domains to be valid Unicode
+ * so every language derives the same bytes from the "same" input. Embedded
+ * U+0000 is unrepresentable through this NUL-terminated API by construction. */
+static int dc_valid_utf8(const uint8_t *s, size_t len)
+{
+    size_t i = 0;
+    while (i < len) {
+        uint8_t b = s[i];
+        if (b < 0x80) {
+            i += 1;
+        } else if ((b & 0xE0) == 0xC0) {
+            if (b < 0xC2 || i + 1 >= len || (s[i + 1] & 0xC0) != 0x80)
+                return 0;
+            i += 2;
+        } else if ((b & 0xF0) == 0xE0) {
+            if (i + 2 >= len || (s[i + 1] & 0xC0) != 0x80 ||
+                (s[i + 2] & 0xC0) != 0x80)
+                return 0;
+            if (b == 0xE0 && s[i + 1] < 0xA0)
+                return 0; /* overlong */
+            if (b == 0xED && s[i + 1] >= 0xA0)
+                return 0; /* surrogate */
+            i += 3;
+        } else if ((b & 0xF8) == 0xF0) {
+            if (b > 0xF4 || i + 3 >= len || (s[i + 1] & 0xC0) != 0x80 ||
+                (s[i + 2] & 0xC0) != 0x80 || (s[i + 3] & 0xC0) != 0x80)
+                return 0;
+            if (b == 0xF0 && s[i + 1] < 0x90)
+                return 0; /* overlong */
+            if (b == 0xF4 && s[i + 1] >= 0x90)
+                return 0; /* > U+10FFFF */
+            i += 4;
+        } else {
+            return 0;
+        }
+    }
+    return 1;
+}
+
 /* Key material rules (SPEC.md §2.1). Writes 16/24/32 bytes into aes_key. */
 static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
                                      uint8_t aes_key[32], size_t *aes_key_len)
@@ -409,6 +449,8 @@ static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
     } else if (cfg->key_string != NULL) {
         material = (const uint8_t *)cfg->key_string;
         material_len = strlen(cfg->key_string);
+        if (!dc_valid_utf8(material, material_len))
+            return DEALCODE_ERR_CONFIG;
         is_string = 1;
     } else {
         return DEALCODE_ERR_CONFIG;
@@ -544,7 +586,8 @@ dealcode_err_t dealcode_new(const dealcode_config_t *cfg, dealcode_t **out)
 
     const char *domain = cfg->domain == NULL ? "" : cfg->domain;
     const size_t domain_len = strlen(domain);
-    if (domain_len > DC_MAX_DOMAIN) {
+    if (domain_len > DC_MAX_DOMAIN ||
+        !dc_valid_utf8((const uint8_t *)domain, domain_len)) {
         err = DEALCODE_ERR_CONFIG;
         goto wipe_key;
     }
