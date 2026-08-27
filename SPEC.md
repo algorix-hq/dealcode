@@ -231,7 +231,7 @@ Three distinguishable error kinds, using each language's idiomatic mechanism:
 | Kind               | Raised when |
 |--------------------|-------------|
 | `ConfigError`      | invalid key size, alphabet, lengths, or domain at construction |
-| `RangeError`       | `encode` called with `n < 0` or `n ≥ r^M` |
+| `RangeError`       | `encode` called with `n < 0` or `n ≥ min(r^M, 2^63)` (§5) |
 | `InvalidCodeError` | `decode` input fails length/charset/stage-range checks |
 
 Implementations MUST NOT silently truncate, wrap, or "fix" invalid input.

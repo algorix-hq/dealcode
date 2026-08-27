@@ -56,9 +56,9 @@ from dealcode import Dealcode
 
 codec = Dealcode(key="운영에서는 `openssl rand -hex 32` 값을 쓰세요")
 
-codec.encode(0)          # 'd3f8a1'
-codec.encode(1)          # '0b47c9'
-codec.decode("0b47c9")   # 1
+codec.encode(0)          # '9ebb54'
+codec.encode(1)          # '19867f'
+codec.decode("19867f")   # 1
 ```
 
 제품에 맞는 모양을 고르면 됩니다:

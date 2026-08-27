@@ -76,3 +76,7 @@ from [`../testvectors/`](../testvectors) (via the C library's
 `gen_vectors.py`) and covers the official NIST FF1 samples, every dealcode
 v1 vector config, exception behaviour, move semantics, and roundtrip sweeps
 across stage boundaries.
+
+## License
+
+MIT — see [LICENSE](../LICENSE).

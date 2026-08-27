@@ -27,9 +27,9 @@ if err != nil {
 	log.Fatal(err)
 }
 
-codec.Encode(0)        // "d3f8a1", nil   (6 hex chars)
-codec.Encode(1)        // "0b47c9", nil   never collides with any other counter
-codec.Decode("0b47c9") // 1, nil
+codec.Encode(0)        // "767a5b", nil   (6 hex chars)
+codec.Encode(1)        // "421163", nil   never collides with any other counter
+codec.Decode("421163") // 1, nil
 ```
 
 The key can be raw bytes (`Config.Key`; 16/24/32 bytes are used as-is as an
@@ -127,6 +127,19 @@ A `Codec` is immutable and safe for concurrent use by multiple goroutines
 without locking; create one per namespace at startup and reuse it. Encoding is
 ten AES-CBC-MAC rounds — single-digit microseconds, O(1) in the counter value,
 with all per-length FF1 parameters precomputed at construction.
+
+## Running the tests
+
+From `go/`:
+
+```sh
+go vet ./...
+go test -race ./...
+```
+
+The suite covers the official NIST FF1 sample vectors, every shared
+cross-language vector in [`../testvectors/`](../testvectors), behavioural
+cases, and concurrent use under the race detector.
 
 ## License
 
