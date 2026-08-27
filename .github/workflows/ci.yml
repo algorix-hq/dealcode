@@ -1,0 +1,89 @@
+# Conformance CI for all implementations.
+#
+# Trigger: MANUAL ONLY (workflow_dispatch) for now — run it from the Actions
+# tab (or `gh workflow run ci.yml`) after pushing. Once the project stabilizes,
+# add push/pull_request triggers back.
+name: ci
+
+on:
+  workflow_dispatch:
+    inputs:
+      only:
+        description: "Run a single job (python|js|go|java|rust|c-cpp) or 'all'"
+        required: false
+        default: "all"
+
+jobs:
+  python:
+    if: ${{ inputs.only == 'all' || inputs.only == 'python' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.9", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - run: pip install ./python pytest
+      - run: python -m pytest python/tests -q
+
+  js:
+    if: ${{ inputs.only == 'all' || inputs.only == 'js' }}
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        node-version: ["18", "22"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node-version }}
+      - run: npm install
+        working-directory: js
+      - run: npm run build && npm test
+        working-directory: js
+
+  go:
+    if: ${{ inputs.only == 'all' || inputs.only == 'go' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - run: go vet ./... && go test -race ./...
+        working-directory: go
+
+  java:
+    if: ${{ inputs.only == 'all' || inputs.only == 'java' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - run: mvn -q -B test
+        working-directory: java
+
+  rust:
+    if: ${{ inputs.only == 'all' || inputs.only == 'rust' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.75.0
+        with:
+          components: clippy
+      - run: cargo clippy -- -D warnings && cargo test
+        working-directory: rust
+
+  c-cpp:
+    if: ${{ inputs.only == 'all' || inputs.only == 'c-cpp' }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libssl-dev cmake
+      - run: make -C c test
+      - run: cmake -S cpp -B cpp/build && cmake --build cpp/build && ctest --test-dir cpp/build --output-on-failure
