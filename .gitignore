@@ -1,0 +1,29 @@
+# python
+__pycache__/
+*.egg-info/
+.pytest_cache/
+dist/
+.venv/
+
+# js
+node_modules/
+
+# go
+go/*.test
+
+# java
+java/target/
+
+# rust
+rust/target/
+
+# c / cpp
+c/*.a
+c/*.o
+c/tests/vectors.inc
+cpp/build/
+
+# editors
+.idea/
+.vscode/
+*.swp
