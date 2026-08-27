@@ -84,7 +84,8 @@ Counters live in `[0, min(r^max_length, 2^63))` *by specification*. Reasons:
   (unbounded `int`) all accept and reject exactly the same inputs.
 - Code space larger than counter space is still allowed
   (`r^max_length ≤ 2^128`) so fixed-length and aesthetic-length formats work;
-  the unreachable region is rejected by decode like any unissued code.
+  the unreachable region is rejected by decode as a range violation, the same
+  way a wrong length or character set is.
 
 ## 6. Key material handling
 
