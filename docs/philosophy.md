@@ -53,8 +53,10 @@ Consequences worth internalizing:
   keep collision rates workable. A permutation uses its space fully: 16.7M
   six-character hex codes, then — only then — seven characters.
 - **`decode` is free.** The code *is* the (encrypted) primary key. Lookup
-  needs no secondary index, and garbage input is rejected before the database
-  sees it.
+  needs no secondary index, and *malformed* input (wrong length or alphabet)
+  is rejected before the database sees it. Note the flip side: a well-formed
+  code always decodes to *some* counter — decode is parsing, and the database
+  lookup is what establishes existence.
 
 ## What to use it for
 

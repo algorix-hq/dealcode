@@ -61,7 +61,14 @@ Dealcode fixed = Dealcode.builder().key(key).alphabet("hex")
 The preset alphabet strings are exposed as constants on
 `io.algorix.dealcode.Alphabets`.
 
-`decode` throws `InvalidCodeException` for anything this codec never issued;
+`decode` throws `InvalidCodeException` for **malformed** input — wrong
+length, characters outside the alphabet, or a value outside the issuable
+range. A *well-formed* code always decodes to some counter, whether or not
+that counter was ever issued (inherent to a permutation — see SPEC §7). Treat
+decode as parsing, not proof of existence: look the counter up before acting
+on it, and note that a one-character typo in a valid code can resolve to a
+*different* valid counter — add rate limiting (and, for human-typed flows, an
+existence check or your own check digit).
 `encode` throws `CounterRangeException` outside `[0, codec.maxCounter()]`.
 All errors subclass `DealcodeException` (an `IllegalArgumentException`).
 `maxCounter()` is the inclusive maximum — the counter space may be exactly
@@ -109,7 +116,7 @@ String createOrder(Connection conn) throws SQLException {
 Optional<Order> findOrder(Connection conn, String code) {
     long n;
     try {
-        n = codec.decode(code);      // no DB roundtrip for obviously-bad codes
+        n = codec.decode(code);      // malformed codes never reach the DB
     } catch (InvalidCodeException e) {
         return Optional.empty();
     }
