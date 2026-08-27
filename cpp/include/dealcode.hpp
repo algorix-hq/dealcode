@@ -109,6 +109,20 @@ struct Deleter {
     }
 }
 
+/* The C API takes NUL-terminated strings, so an embedded U+0000 cannot be
+ * passed through. Reject it explicitly rather than silently truncating at
+ * the NUL (SPEC.md §8: implementations MUST NOT silently truncate). */
+inline void reject_embedded_nul(std::string_view value, const char *what,
+                                bool as_invalid_code = false)
+{
+    if (value.find('\0') == std::string_view::npos)
+        return;
+    const std::string msg = std::string(what) + " must not contain U+0000";
+    if (as_invalid_code)
+        throw InvalidCodeError(msg);
+    throw ConfigError(msg);
+}
+
 } // namespace detail
 
 /**
@@ -123,6 +137,7 @@ public:
      * always derived via SHA-256("dealcode/v1/kdf" || utf8)). */
     explicit Codec(std::string_view key, Options opts = {})
     {
+        detail::reject_embedded_nul(key, "string key material");
         const std::string key_copy(key); /* ensure NUL termination */
         dealcode_config_t cfg{};
         cfg.key_string = key_copy.c_str();
@@ -166,6 +181,7 @@ public:
      * fails length/charset/stage-range checks. */
     std::uint64_t decode(std::string_view code) const
     {
+        detail::reject_embedded_nul(code, "code", /*as_invalid_code=*/true);
         const std::string code_copy(code); /* ensure NUL termination */
         std::uint64_t n = 0;
         const dealcode_err_t err =
@@ -205,6 +221,8 @@ public:
 private:
     void init(dealcode_config_t &cfg, const Options &opts)
     {
+        detail::reject_embedded_nul(opts.alphabet, "alphabet");
+        detail::reject_embedded_nul(opts.domain, "domain");
         cfg.alphabet = opts.alphabet.c_str();
         cfg.min_length = opts.min_length;
         if (opts.max_length.has_value()) {

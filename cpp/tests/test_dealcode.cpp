@@ -418,7 +418,55 @@ static void test_counter_bound_rejection()
 
 // ------------------------------------------------------------------------
 
+
+/* Regression tests for the QA round-2 findings: the wrapper must reject
+ * embedded U+0000 explicitly instead of silently truncating at the NUL
+ * when converting to the C API's NUL-terminated strings. */
+template <typename E, typename F>
+static void nul_expect_throw(F fn, const char *label)
+{
+    g_checks++;
+    try {
+        fn();
+        g_failures++;
+        std::printf("FAIL: %s: no exception\n", label);
+    } catch (const E &) {
+        /* expected */
+    } catch (...) {
+        g_failures++;
+        std::printf("FAIL: %s: wrong exception type\n", label);
+    }
+}
+
+static void test_embedded_nul_rejection()
+{
+    using namespace dealcode;
+    nul_expect_throw<ConfigError>([] { Codec c(std::string("ab\0cd", 5)); },
+                                  "NUL in string key");
+    nul_expect_throw<ConfigError>(
+        [] {
+            Options o;
+            o.domain = std::string("x\0y", 3);
+            Codec c("k", o);
+        },
+        "NUL in domain");
+    nul_expect_throw<ConfigError>(
+        [] {
+            Options o;
+            o.alphabet = std::string("0123456789\0abc", 14);
+            Codec c("k", o);
+        },
+        "NUL in alphabet");
+    Codec c("k");
+    const std::string code = c.encode(826816);
+    nul_expect_throw<InvalidCodeError>(
+        [&] { (void)c.decode(code + std::string("\0", 1)); },
+        "NUL in decode input");
+    CHECK(c.decode(code) == 826816, "clean decode still works");
+}
+
 int main()
+
 {
     test_nist_ff1();
     test_v1_vectors();
@@ -428,6 +476,7 @@ int main()
     test_accessors_and_defaults();
     test_roundtrips();
     test_counter_bound_rejection();
+    test_embedded_nul_rejection();
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     if (g_failures != 0) {

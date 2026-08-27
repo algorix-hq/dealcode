@@ -32,10 +32,20 @@ class InvalidCodeError(DealcodeError):
     """Code fails length, charset, or range validation."""
 
 
+def _encode_clean_utf8(value: str, what: str) -> bytes:
+    """UTF-8 encode, rejecting U+0000 and unpaired surrogates (SPEC.md §2.1)."""
+    if "\x00" in value:
+        raise ConfigError(f"{what} must not contain U+0000")
+    try:
+        return value.encode("utf-8")
+    except UnicodeEncodeError as exc:
+        raise ConfigError(f"{what} must be valid Unicode (no unpaired surrogates)") from exc
+
+
 def _resolve_key(key: Union[bytes, bytearray, str]) -> bytes:
     """Key material handling (SPEC.md §2.1)."""
     if isinstance(key, str):
-        material = key.encode("utf-8")
+        material = _encode_clean_utf8(key, "string key material")
         if not material:
             raise ConfigError("key must not be empty")
         return hashlib.sha256(_KDF_PREFIX + material).digest()
@@ -98,21 +108,27 @@ class Dealcode:
             raise ConfigError(str(exc)) from exc
         radix = len(self._alphabet.chars)
 
-        if not isinstance(min_length, int) or isinstance(min_length, bool) or min_length < 2:
-            raise ConfigError("min_length must be an integer >= 2")
+        # Bound the lengths BEFORE computing any power (SPEC.md §2): 128 is
+        # the structural maximum (radix >= 2, radix**max_length <= 2^128).
+        if not isinstance(min_length, int) or isinstance(min_length, bool) or not (
+            2 <= min_length <= 128
+        ):
+            raise ConfigError("min_length must be an integer in [2, 128]")
         if radix**min_length < 100:
             raise ConfigError(
                 "radix**min_length must be at least 100 (FF1 minimum domain)"
             )
         if max_length is None:
             max_length = _default_max_length(radix, min_length)
-        if not isinstance(max_length, int) or isinstance(max_length, bool) or max_length < min_length:
-            raise ConfigError("max_length must be an integer >= min_length")
+        if not isinstance(max_length, int) or isinstance(max_length, bool) or not (
+            min_length <= max_length <= 128
+        ):
+            raise ConfigError("max_length must be an integer in [min_length, 128]")
         if radix**max_length > _CODESPACE_BOUND:
             raise ConfigError("radix**max_length must not exceed 2^128")
         if not isinstance(domain, str):
             raise ConfigError("domain must be a string")
-        if len(domain.encode("utf-8")) > 255:
+        if len(_encode_clean_utf8(domain, "domain")) > 255:
             raise ConfigError("domain must be at most 255 UTF-8 bytes")
 
         self._radix = radix

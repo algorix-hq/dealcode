@@ -105,6 +105,24 @@ def test_config_errors():
         Dealcode(KEY, "ab cd")  # space not allowed
     with pytest.raises(ConfigError):
         Dealcode(KEY, "hex", domain="x" * 256)
+    # absurd lengths must be rejected in O(1), before any big-power work
+    import time
+
+    t0 = time.perf_counter()
+    with pytest.raises(ConfigError):
+        Dealcode(KEY, "hex", max_length=2**31 - 1)
+    with pytest.raises(ConfigError):
+        Dealcode(KEY, "hex", min_length=10**9)
+    assert time.perf_counter() - t0 < 0.1
+    # U+0000 and unpaired surrogates in string inputs are rejected, not mangled
+    with pytest.raises(ConfigError):
+        Dealcode(KEY, "hex", domain="a\x00b")
+    with pytest.raises(ConfigError):
+        Dealcode(KEY, "hex", domain="\ud800")
+    with pytest.raises(ConfigError):
+        Dealcode("a\x00b")
+    with pytest.raises(ConfigError):
+        Dealcode("\udfff")
 
 
 def test_key_material_flexibility():
