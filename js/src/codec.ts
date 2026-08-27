@@ -58,9 +58,12 @@ function assertCleanUnicode(value: string, what: string): void {
   if (value.includes("\u0000")) {
     throw new ConfigError(`${what} must not contain U+0000`);
   }
+  // String.prototype.isWellFormed needs lib >= ES2024; feature-detect via a
+  // cast so the ES2022 build target still compiles, with a regex fallback.
+  const isWellFormed = (value as { isWellFormed?: () => boolean }).isWellFormed;
   const wellFormed =
-    typeof (value as { isWellFormed?: () => boolean }).isWellFormed === "function"
-      ? value.isWellFormed()
+    typeof isWellFormed === "function"
+      ? isWellFormed.call(value)
       : !/[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?:^|[^\uD800-\uDBFF])[\uDC00-\uDFFF]/.test(value);
   if (!wellFormed) {
     throw new ConfigError(`${what} must be valid Unicode (no unpaired surrogates)`);
