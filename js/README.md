@@ -19,10 +19,10 @@ import { Dealcode } from "dealcode";
 
 const codec = new Dealcode({ key: process.env.DEALCODE_KEY! });
 
-codec.encode(0);        // 'd3f8a1'   (6 hex chars)
-codec.encode(1);        // '0b47c9'   never collides with any other counter
-codec.decode("0b47c9"); // 1n         (bigint — counters can exceed 2^53)
-codec.decodeNumber("0b47c9"); // 1    (number; throws if > Number.MAX_SAFE_INTEGER)
+codec.encode(0);        // e.g. '767a5b' (6 hex chars; depends on your key)
+const code = codec.encode(1);    // never collides with any other counter
+codec.decode(code);              // 1n  (bigint — counters can exceed 2^53)
+codec.decodeNumber(code);        // 1   (number; throws if > Number.MAX_SAFE_INTEGER)
 ```
 
 The key can be raw bytes (a `Uint8Array`/`Buffer` of 16/24/32 bytes is used
@@ -144,6 +144,19 @@ A `Dealcode` instance is immutable (frozen) and safe for concurrent use;
 create one per namespace at startup and reuse it. Per-codec tables (character
 maps, radix powers, FF1 round parameters) are precomputed or cached, and
 encoding is ten AES-CBC-MAC rounds — microseconds, O(1) in the counter value.
+
+## Running the tests
+
+From `js/`:
+
+```sh
+npm install
+npm run build && npm test
+```
+
+The suite (node:test) covers the official NIST FF1 sample vectors, every
+shared cross-language vector in [`../testvectors/`](../testvectors), and
+behavioural/edge cases against the compiled output.
 
 ## License
 

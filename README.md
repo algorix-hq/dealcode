@@ -57,9 +57,9 @@ from dealcode import Dealcode
 
 codec = Dealcode(key="use `openssl rand -hex 32` in production")
 
-codec.encode(0)          # 'd3f8a1'
-codec.encode(1)          # '0b47c9'
-codec.decode("0b47c9")   # 1
+codec.encode(0)          # 'd568e1'
+codec.encode(1)          # 'f7f229'
+codec.decode("f7f229")   # 1
 ```
 
 Pick the shape your product needs:

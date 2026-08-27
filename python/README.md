@@ -18,9 +18,9 @@ from dealcode import Dealcode
 
 codec = Dealcode(key="0a1b...64-hex-chars-from-your-secret-manager")
 
-codec.encode(0)        # 'd3f8a1'   (6 hex chars)
-codec.encode(1)        # '0b47c9'   never collides with any other counter
-codec.decode("0b47c9") # 1
+codec.encode(0)        # '767a5b'   (6 hex chars)
+codec.encode(1)        # '421163'   never collides with any other counter
+codec.decode("421163") # 1
 ```
 
 The key can be raw bytes (16/24/32 bytes are used as-is as an AES key) or any
@@ -105,6 +105,19 @@ key/config changed for an existing namespace. Investigate.
 A `Dealcode` instance is immutable and thread-safe; create one per namespace at
 startup and reuse it. Encoding is ten AES-CBC-MAC rounds — tens of microseconds,
 no allocation-heavy paths, O(1) in the counter value.
+
+## Running the tests
+
+From the repository root:
+
+```sh
+pip install -e ./python pytest    # or: export PYTHONPATH=python/src
+python -m pytest python/tests
+```
+
+The suite covers the official NIST FF1 sample vectors, every shared
+cross-language vector in [`../testvectors/`](../testvectors), and
+behavioural/edge cases.
 
 ## License
 

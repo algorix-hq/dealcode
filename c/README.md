@@ -80,3 +80,7 @@ cipher context per call, so concurrent calls on one handle are safe.
 (through the private FF1 seam in `src/ff1.h`), every dealcode v1 test-vector
 config, error behaviour, and large roundtrip sweeps across stage boundaries —
 including configurations where `radix^max_length` is exactly `2^128`.
+
+## License
+
+MIT — see [LICENSE](../LICENSE).

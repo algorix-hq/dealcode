@@ -126,6 +126,19 @@ official NIST FF1-AES sample vectors plus the shared
 those produced by every other conforming implementation (e.g. the
 [Python package](../python)).
 
+## Running the tests
+
+From `rust/`:
+
+```sh
+cargo test
+cargo clippy --all-targets -- -D warnings
+```
+
+The suite covers the official NIST FF1 sample vectors, every shared
+cross-language vector in [`../testvectors/`](../testvectors), behavioural
+cases, and doctests.
+
 ## License
 
 MIT — see [LICENSE](../LICENSE).

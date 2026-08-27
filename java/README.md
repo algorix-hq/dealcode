@@ -25,9 +25,9 @@ Dealcode codec = Dealcode.builder()
         .key("0a1b...64-hex-chars-from-your-secret-manager")
         .build();
 
-codec.encode(0);        // "d3f8a1"   (6 hex chars)
-codec.encode(1);        // "0b47c9"   never collides with any other counter
-codec.decode("0b47c9"); // 1
+codec.encode(0);        // "767a5b"   (6 hex chars)
+codec.encode(1);        // "421163"   never collides with any other counter
+codec.decode("421163"); // 1
 ```
 
 The key can be raw bytes (16/24/32 bytes are used as-is as an AES key) or any
