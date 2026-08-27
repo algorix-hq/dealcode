@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "dealcode"
+version = "1.0.0"
+description = "Collision-free, random-looking codes from a counter (FF1-based, NIST SP 800-38G)"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.9"
+authors = [{ name = "Algorix Corporation" }]
+keywords = ["ff1", "format-preserving-encryption", "id", "code", "sequence"]
+classifiers = [
+    "Intended Audience :: Developers",
+    "Programming Language :: Python :: 3",
+    "Topic :: Security :: Cryptography",
+    "Topic :: Software Development :: Libraries",
+]
+dependencies = ["cryptography>=41"]
+
+[project.urls]
+Homepage = "https://github.com/algorix-hq/dealcode"
+Specification = "https://github.com/algorix-hq/dealcode/blob/main/SPEC.md"
+
+[dependency-groups]
+dev = ["pytest>=7"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/dealcode"]
