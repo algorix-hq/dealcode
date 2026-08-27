@@ -1,0 +1,86 @@
+{
+  "description": "Official NIST FF1-AES sample vectors. Source: https://csrc.nist.gov/csrc/media/projects/cryptographic-standards-and-guidelines/documents/examples/ff1samples.pdf (NIST publication, U.S. public domain). Plaintext/ciphertext strings use the alphabet 0123456789abcdefghijklmnopqrstuvwxyz (character index = numeral value).",
+  "vectors": [
+    {
+      "sample": 1,
+      "cipher": "FF1-AES128",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3c",
+      "radix": 10,
+      "tweak_hex": "",
+      "plaintext": "0123456789",
+      "ciphertext": "2433477484"
+    },
+    {
+      "sample": 2,
+      "cipher": "FF1-AES128",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3c",
+      "radix": 10,
+      "tweak_hex": "39383736353433323130",
+      "plaintext": "0123456789",
+      "ciphertext": "6124200773"
+    },
+    {
+      "sample": 3,
+      "cipher": "FF1-AES128",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3c",
+      "radix": 36,
+      "tweak_hex": "3737373770717273373737",
+      "plaintext": "0123456789abcdefghi",
+      "ciphertext": "a9tv40mll9kdu509eum"
+    },
+    {
+      "sample": 4,
+      "cipher": "FF1-AES192",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3cef4359d8d580aa4f",
+      "radix": 10,
+      "tweak_hex": "",
+      "plaintext": "0123456789",
+      "ciphertext": "2830668132"
+    },
+    {
+      "sample": 5,
+      "cipher": "FF1-AES192",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3cef4359d8d580aa4f",
+      "radix": 10,
+      "tweak_hex": "39383736353433323130",
+      "plaintext": "0123456789",
+      "ciphertext": "2496655549"
+    },
+    {
+      "sample": 6,
+      "cipher": "FF1-AES192",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3cef4359d8d580aa4f",
+      "radix": 36,
+      "tweak_hex": "3737373770717273373737",
+      "plaintext": "0123456789abcdefghi",
+      "ciphertext": "xbj3kv35jrawxv32ysr"
+    },
+    {
+      "sample": 7,
+      "cipher": "FF1-AES256",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3cef4359d8d580aa4f7f036d6f04fc6a94",
+      "radix": 10,
+      "tweak_hex": "",
+      "plaintext": "0123456789",
+      "ciphertext": "6657667009"
+    },
+    {
+      "sample": 8,
+      "cipher": "FF1-AES256",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3cef4359d8d580aa4f7f036d6f04fc6a94",
+      "radix": 10,
+      "tweak_hex": "39383736353433323130",
+      "plaintext": "0123456789",
+      "ciphertext": "1001623463"
+    },
+    {
+      "sample": 9,
+      "cipher": "FF1-AES256",
+      "key_hex": "2b7e151628aed2a6abf7158809cf4f3cef4359d8d580aa4f7f036d6f04fc6a94",
+      "radix": 36,
+      "tweak_hex": "3737373770717273373737",
+      "plaintext": "0123456789abcdefghi",
+      "ciphertext": "xs8a0azh2avyalyzuwd"
+    }
+  ]
+}
