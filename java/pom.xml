@@ -52,7 +52,7 @@
     <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
     <maven.compiler.release>17</maven.compiler.release>
     <junit.version>5.10.2</junit.version>
-    <jackson.version>2.17.1</jackson.version>
+    <jackson.version>2.18.9</jackson.version>
   </properties>
 
   <!-- Runtime: none. AES (AES/ECB/NoPadding) and SHA-256 come from the JDK's
