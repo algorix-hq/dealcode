@@ -45,11 +45,12 @@ bit-identical.
 | C        | [`c/`](c/) | `make install` / vendored (GCC/Clang: needs `__int128`) | OpenSSL libcrypto |
 | C++      | [`cpp/`](cpp/) | CMake (wraps the C core) | OpenSSL libcrypto |
 
-> [PyPI](https://pypi.org/project/dealcode/) and
-> [npm](https://www.npmjs.com/package/dealcode) are live (v1.0.0); Go
-> modules resolve from this repository. Maven Central and crates.io
-> releases are **pending** — until then those directories' READMEs show
-> how to consume from source.
+> [PyPI](https://pypi.org/project/dealcode/),
+> [npm](https://www.npmjs.com/package/dealcode), and
+> [crates.io](https://crates.io/crates/dealcode) are live (v1.0.0); Go
+> modules resolve from this repository. The Maven Central release is
+> **pending** — until then `java/README.md` shows how to consume from
+> source.
 
 Everything else is dependency-free by design: FF1 and the dealcode layer are
 implemented from the NIST specification in each language and validated against

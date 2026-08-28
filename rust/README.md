@@ -9,10 +9,6 @@ the [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md).
 cargo add dealcode
 ```
 
-Not yet published to crates.io — until then, use it as a git dependency:
-`dealcode = { git = "https://github.com/algorix-hq/dealcode" }` (Cargo finds
-the crate inside the repository by its package name; no path hint needed).
-
 Requires Rust ≥ 1.75. The only runtime dependencies are the audited
 [RustCrypto](https://github.com/RustCrypto) crates
 [`aes`](https://crates.io/crates/aes) and
