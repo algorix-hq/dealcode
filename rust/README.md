@@ -9,7 +9,7 @@ the [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md).
 cargo add dealcode
 ```
 
-Requires Rust ≥ 1.75. The only runtime dependencies are the audited
+Requires Rust ≥ 1.85. The only runtime dependencies are the audited
 [RustCrypto](https://github.com/RustCrypto) crates
 [`aes`](https://crates.io/crates/aes) and
 [`sha2`](https://crates.io/crates/sha2), used for AES and key derivation.

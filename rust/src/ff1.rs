@@ -8,7 +8,7 @@
 //! all callers go through configuration validation that guarantees the
 //! arithmetic below fits in `u128` (`radix^v < 2^96`, `d ≤ 16`).
 
-use aes::cipher::{BlockEncrypt, KeyInit};
+use aes::cipher::{BlockCipherEncrypt, KeyInit};
 use aes::{Aes128, Aes192, Aes256, Block};
 
 /// AES-ECB block encryption for whichever key size the codec was built with.
@@ -31,16 +31,16 @@ impl AesCipher {
     /// produces those three sizes).
     pub(crate) fn new(key: &[u8]) -> Self {
         match key.len() {
-            16 => AesCipher::Aes128(Aes128::new(key.into())),
-            24 => AesCipher::Aes192(Aes192::new(key.into())),
-            32 => AesCipher::Aes256(Aes256::new(key.into())),
+            16 => AesCipher::Aes128(Aes128::new_from_slice(key).expect("length checked above")),
+            24 => AesCipher::Aes192(Aes192::new_from_slice(key).expect("length checked above")),
+            32 => AesCipher::Aes256(Aes256::new_from_slice(key).expect("length checked above")),
             // Key resolution (SPEC §2.1) only produces 16/24/32-byte keys.
             n => unreachable!("AES key must be 16, 24, or 32 bytes, got {n}"),
         }
     }
 
     fn encrypt_block(&self, block: &mut [u8; 16]) {
-        let block = Block::from_mut_slice(block);
+        let block: &mut Block = block.into();
         match self {
             AesCipher::Aes128(c) => c.encrypt_block(block),
             AesCipher::Aes192(c) => c.encrypt_block(block),
@@ -97,7 +97,7 @@ pub(crate) fn params(radix: u32, tweak: &[u8], n: usize) -> Params {
     // radix^n >= 100 (FF1's structural minimum domain); None means overflow,
     // which is certainly >= 100.
     assert!(
-        r.checked_pow(n as u32).map_or(true, |x| x >= 100),
+        r.checked_pow(n as u32).is_none_or(|x| x >= 100),
         "FF1 domain radix^n must be at least 100"
     );
 

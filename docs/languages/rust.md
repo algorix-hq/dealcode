@@ -1,6 +1,6 @@
 # Rust
 
-Rust implementation of the [spec](../spec.md). Requires Rust ≥ 1.75. The
+Rust implementation of the [spec](../spec.md). Requires Rust ≥ 1.85. The
 only runtime dependencies are the audited
 [RustCrypto](https://github.com/RustCrypto) crates
 [`aes`](https://crates.io/crates/aes) and

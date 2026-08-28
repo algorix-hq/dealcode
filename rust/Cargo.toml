@@ -2,7 +2,7 @@
 name = "dealcode"
 version = "1.0.0"
 edition = "2021"
-rust-version = "1.75"
+rust-version = "1.85"
 license = "MIT"
 description = "Collision-free, random-looking codes from a database counter, via FF1 format-preserving encryption (dealcode spec v1)."
 keywords = ["fpe", "ff1", "codes", "coupon", "id"]

@@ -1,6 +1,6 @@
 # Rust
 
-[스펙](../spec.ko.md)의 Rust 구현. Rust ≥ 1.75 필요. 런타임 의존성은
+[스펙](../spec.ko.md)의 Rust 구현. Rust ≥ 1.85 필요. 런타임 의존성은
 감사된 [RustCrypto](https://github.com/RustCrypto) 크레이트
 [`aes`](https://crates.io/crates/aes)와
 [`sha2`](https://crates.io/crates/sha2)뿐입니다.

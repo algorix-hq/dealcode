@@ -406,7 +406,7 @@ impl Dealcode {
         // radix^min_length >= 100; overflow (None) trivially satisfies it.
         let min_ok = u32::try_from(min_length)
             .ok()
-            .map_or(true, |e| r.checked_pow(e).map_or(true, |p| p >= 100));
+            .is_none_or(|e| r.checked_pow(e).is_none_or(|p| p >= 100));
         if !min_ok {
             return Err(Error::Config(
                 "radix^min_length must be at least 100 (FF1 minimum domain)".to_owned(),
@@ -428,7 +428,7 @@ impl Dealcode {
         let max_ok = max_length <= 128
             && r
                 .checked_pow((max_length - 1) as u32)
-                .map_or(false, |p| p <= floor_2_128_div_r);
+                .is_some_and(|p| p <= floor_2_128_div_r);
         if !max_ok {
             return Err(Error::Config(
                 "radix^max_length must not exceed 2^128".to_owned(),
@@ -670,7 +670,7 @@ fn default_max_length(radix: u128, min_length: usize) -> usize {
         Some(c) => c,
         None => return min_length, // radix^min_length > 2^128; rejected later
     };
-    while cap.checked_mul(radix).map_or(false, |next| next < COUNTER_BOUND) {
+    while cap.checked_mul(radix).is_some_and(|next| next < COUNTER_BOUND) {
         cap *= radix;
         length += 1;
     }
