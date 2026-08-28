@@ -44,7 +44,7 @@ static links add `-lcrypto` via `--static`):
 cc myapp.c $(pkg-config --cflags --libs dealcode) -lcrypto
 ```
 
-The installed header defines `DEALCODE_VERSION` (`"1.0.0"`), which is also
+The installed header defines `DEALCODE_VERSION` (`"1.0.1"`), which is also
 the `Version` reported by `pkg-config --modversion dealcode`.
 
 ### Sanitizers and custom flags

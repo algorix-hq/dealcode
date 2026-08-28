@@ -52,7 +52,7 @@
 | C | [`c/`](c/) | `make install` / 벤더링 (GCC/Clang: `__int128` 필요) | OpenSSL libcrypto |
 | C++ | [`cpp/`](cpp/) | CMake (C 코어 래핑) | OpenSSL libcrypto |
 
-> v1.0.0이 모든 곳에 출시됐습니다:
+> v1.0.1이 모든 곳에 출시됐습니다:
 > [PyPI](https://pypi.org/project/dealcode/) ·
 > [npm](https://www.npmjs.com/package/dealcode) ·
 > [crates.io](https://crates.io/crates/dealcode) ·

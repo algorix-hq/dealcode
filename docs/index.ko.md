@@ -93,7 +93,7 @@ Dealcode(key, "!@#$%^&*")                          # 커스텀 알파벳도 그�
 
 !!! note "레지스트리 배포 상태"
 
-    v1.0.0이 [PyPI](https://pypi.org/project/dealcode/),
+    v1.0.1이 [PyPI](https://pypi.org/project/dealcode/),
     [npm](https://www.npmjs.com/package/dealcode),
     [crates.io](https://crates.io/crates/dealcode),
     [Maven Central](https://central.sonatype.com/artifact/io.algorix/dealcode)에

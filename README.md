@@ -52,7 +52,7 @@ bit-identical.
 | C        | [`c/`](c/) | `make install` / vendored (GCC/Clang: needs `__int128`) | OpenSSL libcrypto |
 | C++      | [`cpp/`](cpp/) | CMake (wraps the C core) | OpenSSL libcrypto |
 
-> v1.0.0 is live everywhere: [PyPI](https://pypi.org/project/dealcode/),
+> v1.0.1 is live everywhere: [PyPI](https://pypi.org/project/dealcode/),
 > [npm](https://www.npmjs.com/package/dealcode),
 > [crates.io](https://crates.io/crates/dealcode),
 > [Maven Central](https://central.sonatype.com/artifact/io.algorix/dealcode);

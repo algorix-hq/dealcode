@@ -94,7 +94,7 @@ Dealcode(key, "!@#$%^&*")                          # your own alphabet, why not
 
 !!! note "Registry status"
 
-    v1.0.0 is live on [PyPI](https://pypi.org/project/dealcode/),
+    v1.0.1 is live on [PyPI](https://pypi.org/project/dealcode/),
     [npm](https://www.npmjs.com/package/dealcode),
     [crates.io](https://crates.io/crates/dealcode), and
     [Maven Central](https://central.sonatype.com/artifact/io.algorix/dealcode);

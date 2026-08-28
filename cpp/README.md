@@ -48,7 +48,7 @@ target_link_libraries(myapp PRIVATE dealcode::dealcode)
 include(FetchContent)
 FetchContent_Declare(dealcode
     GIT_REPOSITORY https://github.com/algorix-hq/dealcode.git
-    GIT_TAG v1.0.0
+    GIT_TAG v1.0.1
     SOURCE_SUBDIR cpp)
 FetchContent_MakeAvailable(dealcode)
 target_link_libraries(myapp PRIVATE dealcode::dealcode)

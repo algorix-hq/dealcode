@@ -12,7 +12,7 @@ SHA-256은 JDK 내장 JCE 프로바이더에서 옵니다.
 <dependency>
   <groupId>io.algorix</groupId>
   <artifactId>dealcode</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
 </dependency>
 ```
 

@@ -54,7 +54,7 @@ extern "C" {
  * @brief Library version (also the dealcode format is version 1; see
  * SPEC.md). Matches the Version field of the installed dealcode.pc.
  */
-#define DEALCODE_VERSION "1.0.0"
+#define DEALCODE_VERSION "1.0.1"
 
 /**
  * @brief Result codes. All API functions return one of these.

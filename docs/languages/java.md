@@ -13,7 +13,7 @@ Source of truth: [`java/` on GitHub](https://github.com/algorix-hq/dealcode/tree
 <dependency>
   <groupId>io.algorix</groupId>
   <artifactId>dealcode</artifactId>
-  <version>1.0.0</version>
+  <version>1.0.1</version>
 </dependency>
 ```
 

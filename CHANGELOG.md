@@ -7,6 +7,8 @@ scope; format v1 outputs never change (see SPEC.md).
 
 ## Unreleased
 
+## 1.0.1 — 2026-08-28
+
 Maintenance: dependency and toolchain refresh plus registry-page polish.
 No changes to the code format — v1/v1c outputs are bit-identical to 1.0.0.
 
@@ -21,7 +23,7 @@ No changes to the code format — v1/v1c outputs are bit-identical to 1.0.0.
 ### Registry pages & docs
 - Package metadata on PyPI, npm, and crates.io links the documentation
   site (<https://algorix-hq.github.io/dealcode/>); README gains registry
-  version badges. The next release republishes every package with OIDC
+  version badges. This release republishes every package with OIDC
   Trusted Publishing provenance and refreshed registry READMEs.
 
 ### Infrastructure

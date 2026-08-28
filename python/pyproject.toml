@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "dealcode"
-version = "1.0.0"
+version = "1.0.1"
 description = "Collision-free, random-looking codes from a counter (FF1-based, NIST SP 800-38G)"
 readme = "README.md"
 license = "MIT"
