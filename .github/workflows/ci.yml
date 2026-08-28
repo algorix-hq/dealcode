@@ -35,7 +35,7 @@ concurrency:
 jobs:
   # The committed vectors must be exactly what the reference generator emits.
   vectors:
-    if: ${{ inputs.only == 'all' || inputs.only == 'vectors' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'vectors' }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -49,7 +49,7 @@ jobs:
       - run: git diff --exit-code testvectors/ && test -z "$(git status --porcelain testvectors/)"
 
   python:
-    if: ${{ inputs.only == 'all' || inputs.only == 'python' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'python' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -64,7 +64,7 @@ jobs:
       - run: python -m pytest python/tests -q
 
   js:
-    if: ${{ inputs.only == 'all' || inputs.only == 'js' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'js' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
@@ -83,7 +83,7 @@ jobs:
         working-directory: js
 
   go:
-    if: ${{ inputs.only == 'all' || inputs.only == 'go' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'go' }}
     runs-on: ubuntu-latest
     timeout-minutes: 15
     steps:
@@ -98,7 +98,7 @@ jobs:
         working-directory: go
 
   java:
-    if: ${{ inputs.only == 'all' || inputs.only == 'java' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'java' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -112,7 +112,7 @@ jobs:
         working-directory: java
 
   rust:
-    if: ${{ inputs.only == 'all' || inputs.only == 'rust' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'rust' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -127,7 +127,7 @@ jobs:
         working-directory: rust
 
   c-cpp:
-    if: ${{ inputs.only == 'all' || inputs.only == 'c-cpp' }}
+    if: ${{ github.event_name != 'workflow_dispatch' || inputs.only == 'all' || inputs.only == 'c-cpp' }}
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
