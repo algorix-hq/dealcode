@@ -10,14 +10,9 @@ Source of truth: [`python/` on GitHub](https://github.com/algorix-hq/dealcode/tr
 ## Install
 
 ```sh
-pip install dealcode          # once published to PyPI
+pip install dealcode
 ```
 
-Not on PyPI yet — until then, install from a checkout:
-
-```sh
-pip install ./python          # from the repository root
-```
 
 ## Minimal example
 

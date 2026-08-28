@@ -12,15 +12,9 @@ Source of truth: [`rust/` on GitHub](https://github.com/algorix-hq/dealcode/tree
 ## Install
 
 ```sh
-cargo add dealcode            # once published to crates.io
+cargo add dealcode
 ```
 
-Not on crates.io yet — until then, use a git dependency:
-
-```toml
-[dependencies]
-dealcode = { git = "https://github.com/algorix-hq/dealcode" }
-```
 
 ## Minimal example
 

@@ -17,8 +17,6 @@ Source of truth: [`java/` on GitHub](https://github.com/algorix-hq/dealcode/tree
 </dependency>
 ```
 
-Not on Maven Central yet — until then, build from a checkout
-(`mvn install` in `java/`) to publish to your local repository.
 
 ## Minimal example
 

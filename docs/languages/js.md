@@ -10,14 +10,9 @@ Source of truth: [`js/` on GitHub](https://github.com/algorix-hq/dealcode/tree/m
 ## Install
 
 ```sh
-npm install dealcode          # once published to npm
+npm install dealcode
 ```
 
-Not on npm yet — until then, install from a checkout:
-
-```sh
-npm install ./js              # from the repository root (runs the TS build)
-```
 
 ## Minimal example
 

@@ -16,8 +16,6 @@ SHA-256은 JDK 내장 JCE 프로바이더에서 옵니다.
 </dependency>
 ```
 
-아직 Maven Central에 없습니다 — 그 전까지는 체크아웃에서 빌드해(`java/`
-에서 `mvn install`) 로컬 저장소에 넣어 쓰세요.
 
 ## 최소 예제
 

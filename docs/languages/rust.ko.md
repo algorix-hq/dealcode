@@ -11,15 +11,9 @@
 ## 설치
 
 ```sh
-cargo add dealcode            # crates.io 배포 이후
+cargo add dealcode
 ```
 
-아직 crates.io에 없습니다 — 그 전까지는 git 의존성을 쓰세요:
-
-```toml
-[dependencies]
-dealcode = { git = "https://github.com/algorix-hq/dealcode" }
-```
 
 ## 최소 예제
 

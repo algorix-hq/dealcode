@@ -10,14 +10,9 @@
 ## 설치
 
 ```sh
-pip install dealcode          # PyPI 배포 이후
+pip install dealcode
 ```
 
-아직 PyPI에 없습니다 — 그 전까지는 체크아웃에서 설치하세요:
-
-```sh
-pip install ./python          # 저장소 루트에서
-```
 
 ## 최소 예제
 

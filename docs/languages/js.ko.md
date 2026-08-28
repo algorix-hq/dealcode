@@ -10,14 +10,9 @@ TypeScript 타입을 제공합니다.
 ## 설치
 
 ```sh
-npm install dealcode          # npm 배포 이후
+npm install dealcode
 ```
 
-아직 npm에 없습니다 — 그 전까지는 체크아웃에서 설치하세요:
-
-```sh
-npm install ./js              # 저장소 루트에서 (TS 빌드 실행)
-```
 
 ## 최소 예제
 
