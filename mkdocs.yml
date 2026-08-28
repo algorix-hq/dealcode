@@ -1,0 +1,130 @@
+site_name: dealcode
+site_url: https://algorix-hq.github.io/dealcode/
+site_description: >-
+  Collision-free, random-looking codes from a counter — FF1 (NIST SP 800-38G)
+  in seven languages, bit-identical everywhere.
+site_author: Algorix Corporation
+copyright: MIT License &copy; Algorix Corporation
+
+repo_url: https://github.com/algorix-hq/dealcode
+repo_name: algorix-hq/dealcode
+edit_uri: edit/main/docs/
+
+theme:
+  name: material
+  logo: assets/logo.svg
+  favicon: assets/favicon.svg
+  icon:
+    repo: fontawesome/brands/github
+  palette:
+    # Automatic (follows OS), light, dark — three-state toggle
+    - media: "(prefers-color-scheme)"
+      toggle:
+        icon: material/brightness-auto
+        name: Switch to light mode
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      primary: teal
+      accent: deep orange
+      toggle:
+        icon: material/brightness-4
+        name: Switch to system preference
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.top
+    - navigation.footer
+    - toc.follow
+    - search.suggest
+    - search.highlight
+    - content.tabs.link
+    - content.code.copy
+    - content.action.edit
+
+markdown_extensions:
+  - admonition
+  - attr_list
+  - md_in_html
+  - footnotes
+  - tables
+  - toc:
+      permalink: true
+  - pymdownx.details
+  - pymdownx.superfences
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.snippets:
+      # Repo-root includes: SPEC.md and CONTRIBUTING.md are rendered into the
+      # site without duplication (see docs/_hooks.py, which expands the same
+      # syntax early so repository-relative links can be rewritten).
+      base_path:
+        - .
+      check_paths: true
+
+# Keep non-page files out of the built site.
+exclude_docs: |
+  requirements.txt
+  _hooks.py
+
+hooks:
+  - docs/_hooks.py
+
+plugins:
+  - search
+  - i18n:
+      docs_structure: suffix
+      languages:
+        - locale: en
+          name: English
+          build: true
+          default: true
+        - locale: ko
+          name: 한국어
+          build: true
+          site_description: >-
+            카운터에서 절대 겹치지 않는 랜덤처럼 보이는 코드를 —
+            FF1(NIST SP 800-38G) 기반, 7개 언어에서 비트 단위로 동일하게.
+          nav_translations:
+            Home: 홈
+            Getting started: 시작하기
+            Guide: 가이드
+            Database integration: 데이터베이스 연동
+            Configuration: 설정
+            Security model: 보안 모델
+            Languages: 언어
+            Specification: 스펙
+            Internals: 내부 문서
+            Why dealcode exists: dealcode가 존재하는 이유
+            Design decisions: 설계 결정 기록
+            Contributing: 기여하기
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guide:
+      - Database integration: guide/database.md
+      - Configuration: guide/configuration.md
+      - Security model: guide/security.md
+  - Languages:
+      - Python: languages/python.md
+      - TypeScript / JavaScript: languages/js.md
+      - Go: languages/go.md
+      - Java: languages/java.md
+      - Rust: languages/rust.md
+      - C: languages/c.md
+      - C++: languages/cpp.md
+  - Specification: spec.md
+  - Internals:
+      - Why dealcode exists: philosophy.md
+      - Design decisions: design.md
+  - Contributing: contributing.md

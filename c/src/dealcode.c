@@ -20,6 +20,12 @@
 #include "dealcode.h"
 #include "ff1.h"
 
+#if !defined(__SIZEOF_INT128__)
+#error "dealcode requires unsigned __int128 (GCC or Clang)"
+#endif
+
+#include <stdarg.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -343,6 +349,29 @@ static const dc_preset_t DC_PRESETS[] = {
       NORM_NONE },
 };
 
+/* Case-insensitive ASCII equality against an all-lowercase reference. */
+static int dc_ascii_ieq(const char *s, const char *lower_ref)
+{
+    size_t i = 0;
+    for (; s[i] != '\0' && lower_ref[i] != '\0'; i++) {
+        char c = s[i];
+        if (c >= 'A' && c <= 'Z')
+            c = (char)(c + 32);
+        if (c != lower_ref[i])
+            return 0;
+    }
+    return s[i] == '\0' && lower_ref[i] == '\0';
+}
+
+/* The preset name that `s` equals ASCII-case-insensitively, or NULL. */
+static const char *dc_preset_name_ci(const char *s)
+{
+    for (size_t i = 0; i < sizeof DC_PRESETS / sizeof DC_PRESETS[0]; i++)
+        if (dc_ascii_ieq(s, DC_PRESETS[i].name))
+            return DC_PRESETS[i].name;
+    return NULL;
+}
+
 static char dc_norm_char(char c, dc_norm_t norm)
 {
     switch (norm) {
@@ -392,6 +421,20 @@ struct dealcode_st {
     u128 powers[DC_MAX_LENGTH];
 };
 
+/* Formats a one-line diagnostic into errbuf (NULL/0 tolerated; truncates). */
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((format(printf, 3, 4)))
+#endif
+static void dc_errf(char *errbuf, size_t errbuf_len, const char *fmt, ...)
+{
+    if (errbuf == NULL || errbuf_len == 0)
+        return;
+    va_list ap;
+    va_start(ap, fmt);
+    vsnprintf(errbuf, errbuf_len, fmt, ap);
+    va_end(ap);
+}
+
 /* Validates UTF-8 (RFC 3629: no overlongs, no surrogates, <= U+10FFFF).
  * SPEC.md §2.1 requires string key material and domains to be valid Unicode
  * so every language derives the same bytes from the "same" input. Embedded
@@ -432,16 +475,22 @@ static int dc_valid_utf8(const uint8_t *s, size_t len)
     return 1;
 }
 
-/* Key material rules (SPEC.md §2.1). Writes 16/24/32 bytes into aes_key. */
+/* Key material rules (SPEC.md §2.1). Writes 16/24/32 bytes into aes_key.
+ * Diagnostics never echo key material, except the preset-name guard: a key
+ * rejected for *being* a preset alphabet name is not a secret. */
 static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
-                                     uint8_t aes_key[32], size_t *aes_key_len)
+                                     uint8_t aes_key[32], size_t *aes_key_len,
+                                     char *errbuf, size_t errbuf_len)
 {
     const uint8_t *material;
     size_t material_len;
     int is_string;
 
-    if (cfg->key != NULL && cfg->key_string != NULL)
-        return DEALCODE_ERR_CONFIG; /* exactly one form of key material */
+    if (cfg->key != NULL && cfg->key_string != NULL) {
+        dc_errf(errbuf, errbuf_len,
+                "key: both key bytes and key_string set — set exactly one");
+        return DEALCODE_ERR_CONFIG;
+    }
     if (cfg->key != NULL) {
         material = cfg->key;
         material_len = cfg->key_len;
@@ -449,14 +498,34 @@ static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
     } else if (cfg->key_string != NULL) {
         material = (const uint8_t *)cfg->key_string;
         material_len = strlen(cfg->key_string);
-        if (!dc_valid_utf8(material, material_len))
+        if (!dc_valid_utf8(material, material_len)) {
+            dc_errf(errbuf, errbuf_len,
+                    "key: key_string is not valid UTF-8");
             return DEALCODE_ERR_CONFIG;
+        }
         is_string = 1;
     } else {
+        dc_errf(errbuf, errbuf_len,
+                "key: no key material (set key/key_len or key_string)");
         return DEALCODE_ERR_CONFIG;
     }
-    if (material_len == 0)
+    if (material_len == 0) {
+        dc_errf(errbuf, errbuf_len, "key: empty");
         return DEALCODE_ERR_CONFIG;
+    }
+
+    if (is_string) {
+        /* Swapped-arguments guard (SPEC.md §2.1): a string key that is a
+         * preset alphabet name (ASCII-case-insensitively) is rejected. */
+        const char *preset = dc_preset_name_ci(cfg->key_string);
+        if (preset != NULL) {
+            dc_errf(errbuf, errbuf_len,
+                    "string key \"%s\" is a preset alphabet name — did you "
+                    "swap the key and alphabet fields?",
+                    cfg->key_string);
+            return DEALCODE_ERR_CONFIG;
+        }
+    }
 
     if (!is_string &&
         (material_len == 16 || material_len == 24 || material_len == 32)) {
@@ -467,16 +536,20 @@ static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
 
     /* AES-256 key = SHA-256("dealcode/v1/kdf" || material) */
     EVP_MD_CTX *md = EVP_MD_CTX_new();
-    if (md == NULL)
+    if (md == NULL) {
+        dc_errf(errbuf, errbuf_len, "out of memory");
         return DEALCODE_ERR_NOMEM;
+    }
     unsigned int digest_len = 0;
     int ok = EVP_DigestInit_ex(md, EVP_sha256(), NULL) == 1 &&
              EVP_DigestUpdate(md, DC_KDF_PREFIX, DC_KDF_PREFIX_LEN) == 1 &&
              EVP_DigestUpdate(md, material, material_len) == 1 &&
              EVP_DigestFinal_ex(md, aes_key, &digest_len) == 1;
     EVP_MD_CTX_free(md);
-    if (!ok || digest_len != 32)
+    if (!ok || digest_len != 32) {
+        dc_errf(errbuf, errbuf_len, "OpenSSL failure during key derivation");
         return DEALCODE_ERR_CRYPTO;
+    }
     *aes_key_len = 32;
     return DEALCODE_OK;
 }
@@ -484,7 +557,8 @@ static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
 /* Resolve preset name or custom alphabet into chars + normalization. */
 static dealcode_err_t dc_resolve_alphabet(const char *alphabet,
                                           const char **chars_out,
-                                          dc_norm_t *norm_out)
+                                          dc_norm_t *norm_out,
+                                          char *errbuf, size_t errbuf_len)
 {
     if (alphabet == NULL)
         alphabet = "hex";
@@ -495,17 +569,45 @@ static dealcode_err_t dc_resolve_alphabet(const char *alphabet,
             return DEALCODE_OK;
         }
     }
+    /* Preset-name-in-disguise guard (SPEC.md §3.2): not exactly a preset
+     * name, but ASCII-case-insensitively equal to one ("HEX", "Base62").
+     * Accepting it would silently build a codec over the letters of the
+     * name itself. */
+    {
+        const char *preset = dc_preset_name_ci(alphabet);
+        if (preset != NULL) {
+            dc_errf(errbuf, errbuf_len,
+                    "custom alphabet \"%s\" matches the preset name \"%s\" — "
+                    "pass \"%s\" for the preset, or a genuinely custom "
+                    "alphabet",
+                    alphabet, preset, preset);
+            return DEALCODE_ERR_CONFIG;
+        }
+    }
     /* custom: 2-94 distinct printable ASCII chars (0x21-0x7E) */
     size_t len = strlen(alphabet);
-    if (len < 2 || len > 94)
+    if (len < 2 || len > 94) {
+        dc_errf(errbuf, errbuf_len,
+                "alphabet: custom alphabet must have 2-94 characters "
+                "(got %zu)",
+                len);
         return DEALCODE_ERR_CONFIG;
+    }
     int seen[256] = { 0 };
     for (size_t i = 0; i < len; i++) {
         unsigned char c = (unsigned char)alphabet[i];
-        if (c < 0x21 || c > 0x7e)
+        if (c < 0x21 || c > 0x7e) {
+            dc_errf(errbuf, errbuf_len,
+                    "alphabet: byte 0x%02x at index %zu is not printable "
+                    "ASCII (0x21-0x7E)",
+                    c, i);
             return DEALCODE_ERR_CONFIG;
-        if (seen[c])
+        }
+        if (seen[c]) {
+            dc_errf(errbuf, errbuf_len,
+                    "alphabet: duplicate character '%c'", (char)c);
             return DEALCODE_ERR_CONFIG;
+        }
         seen[c] = 1;
     }
     *chars_out = alphabet;
@@ -533,29 +635,45 @@ static int dc_default_max_length(unsigned radix, int min_length, u128 q_min)
     return length;
 }
 
-dealcode_err_t dealcode_new(const dealcode_config_t *cfg, dealcode_t **out)
+dealcode_err_t dealcode_new_ex(const dealcode_config_t *cfg, dealcode_t **out,
+                               char *errbuf, size_t errbuf_len)
 {
-    if (out == NULL)
+    if (errbuf != NULL && errbuf_len > 0)
+        errbuf[0] = '\0';
+    if (out == NULL) {
+        dc_errf(errbuf, errbuf_len, "out: NULL");
         return DEALCODE_ERR_CONFIG;
+    }
     *out = NULL;
-    if (cfg == NULL)
+    if (cfg == NULL) {
+        dc_errf(errbuf, errbuf_len, "cfg: NULL");
         return DEALCODE_ERR_CONFIG;
+    }
 
     uint8_t aes_key[32];
     size_t aes_key_len = 0;
-    dealcode_err_t err = dc_resolve_key(cfg, aes_key, &aes_key_len);
+    dealcode_err_t err =
+        dc_resolve_key(cfg, aes_key, &aes_key_len, errbuf, errbuf_len);
     if (err != DEALCODE_OK)
         return err;
 
     const char *chars = NULL;
     dc_norm_t norm = NORM_NONE;
-    err = dc_resolve_alphabet(cfg->alphabet, &chars, &norm);
+    err = dc_resolve_alphabet(cfg->alphabet, &chars, &norm, errbuf,
+                              errbuf_len);
     if (err != DEALCODE_OK)
         goto wipe_key;
     const unsigned radix = (unsigned)strlen(chars);
 
     int min_length = cfg->min_length == 0 ? 6 : cfg->min_length;
-    if (min_length < 2 || min_length > DC_MAX_LENGTH) {
+    if (min_length < 2) {
+        dc_errf(errbuf, errbuf_len, "min_length %d < 2", cfg->min_length);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+    if (min_length > DC_MAX_LENGTH) {
+        dc_errf(errbuf, errbuf_len, "min_length %d > %d", min_length,
+                DC_MAX_LENGTH);
         err = DEALCODE_ERR_CONFIG;
         goto wipe_key;
     }
@@ -565,12 +683,19 @@ dealcode_err_t dealcode_new(const dealcode_config_t *cfg, dealcode_t **out)
     u128 q = 0;
     for (int d = 1; d <= min_length; d++) {
         if (q > q_limit) {
-            err = DEALCODE_ERR_CONFIG; /* radix^min_length > 2^128 */
+            dc_errf(errbuf, errbuf_len,
+                    "radix^min_length (%u^%d) exceeds 2^128", radix,
+                    min_length);
+            err = DEALCODE_ERR_CONFIG;
             goto wipe_key;
         }
         q = q * radix + (radix - 1);
     }
     if (q < 99) { /* radix^min_length < 100: below FF1's minimum domain */
+        dc_errf(errbuf, errbuf_len,
+                "radix^min_length (%u^%d) is below FF1's minimum code "
+                "space of 100",
+                radix, min_length);
         err = DEALCODE_ERR_CONFIG;
         goto wipe_key;
     }
@@ -579,21 +704,37 @@ dealcode_err_t dealcode_new(const dealcode_config_t *cfg, dealcode_t **out)
     int max_length = cfg->max_length == 0
                          ? dc_default_max_length(radix, min_length, q_min)
                          : cfg->max_length;
-    if (max_length < min_length || max_length > DC_MAX_LENGTH) {
+    if (max_length < min_length) {
+        dc_errf(errbuf, errbuf_len, "max_length %d < min_length %d",
+                max_length, min_length);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+    if (max_length > DC_MAX_LENGTH) {
+        dc_errf(errbuf, errbuf_len, "max_length %d > %d", max_length,
+                DC_MAX_LENGTH);
         err = DEALCODE_ERR_CONFIG;
         goto wipe_key;
     }
 
     const char *domain = cfg->domain == NULL ? "" : cfg->domain;
     const size_t domain_len = strlen(domain);
-    if (domain_len > DC_MAX_DOMAIN ||
-        !dc_valid_utf8((const uint8_t *)domain, domain_len)) {
+    if (domain_len > DC_MAX_DOMAIN) {
+        dc_errf(errbuf, errbuf_len,
+                "domain exceeds %d UTF-8 bytes (got %zu)", DC_MAX_DOMAIN,
+                domain_len);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+    if (!dc_valid_utf8((const uint8_t *)domain, domain_len)) {
+        dc_errf(errbuf, errbuf_len, "domain: not valid UTF-8");
         err = DEALCODE_ERR_CONFIG;
         goto wipe_key;
     }
 
     dealcode_t *dc = calloc(1, sizeof *dc);
     if (dc == NULL) {
+        dc_errf(errbuf, errbuf_len, "out of memory");
         err = DEALCODE_ERR_NOMEM;
         goto wipe_key;
     }
@@ -607,7 +748,10 @@ dealcode_err_t dealcode_new(const dealcode_config_t *cfg, dealcode_t **out)
     for (int d = min_length; d < max_length; d++) {
         dc->powers[d] = q + 1; /* radix^d, d <= max_length-1: representable */
         if (q > q_limit) {
-            err = DEALCODE_ERR_CONFIG; /* radix^max_length > 2^128 */
+            dc_errf(errbuf, errbuf_len,
+                    "radix^max_length (%u^%d) exceeds 2^128", radix,
+                    max_length);
+            err = DEALCODE_ERR_CONFIG;
             goto fail_free;
         }
         q = q * radix + (radix - 1);
@@ -617,8 +761,10 @@ dealcode_err_t dealcode_new(const dealcode_config_t *cfg, dealcode_t **out)
     dc->capacity = (q >= TWO63 - 1) ? (uint64_t)TWO63 : (uint64_t)(q + 1);
 
     err = dealcode_ff1_init(&dc->ff1, aes_key, aes_key_len, radix);
-    if (err != DEALCODE_OK)
+    if (err != DEALCODE_OK) {
+        dc_errf(errbuf, errbuf_len, "internal: FF1 initialization failed");
         goto fail_free;
+    }
 
     memcpy(dc->alphabet, chars, radix);
     dc->alphabet[radix] = '\0';
@@ -644,6 +790,11 @@ fail_free:
 wipe_key:
     OPENSSL_cleanse(aes_key, sizeof aes_key);
     return err;
+}
+
+dealcode_err_t dealcode_new(const dealcode_config_t *cfg, dealcode_t **out)
+{
+    return dealcode_new_ex(cfg, out, NULL, 0);
 }
 
 void dealcode_free(dealcode_t *dc)

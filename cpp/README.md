@@ -11,7 +11,8 @@ OpenSSL libcrypto.
 
 - A C++17 compiler (GCC or Clang; the C core uses `unsigned __int128`).
 - OpenSSL libcrypto with headers (`libssl-dev` on Debian/Ubuntu).
-- CMake 3.16+, plus `python3` to generate test vectors for the test suite.
+- CMake 3.16+, plus `python3` to generate test vectors for the test suite
+  (only when `DEALCODE_BUILD_TESTS` is on; consumers never need it).
 
 ## Build and test
 
@@ -22,9 +23,50 @@ ctest --test-dir cpp/build
 ```
 
 The CMake project builds the C core (`dealcode_core`, from
-`../c/src/dealcode.c`), exposes the wrapper as the `dealcode_cpp` interface
-library, and registers the test binary with CTest. To consume from another
-CMake project, `add_subdirectory(cpp)` and link `dealcode_cpp`.
+`../c/src/dealcode.c`), exposes the wrapper as the `dealcode::dealcode`
+target, and registers the test binary with CTest. Tests (and their Python3
+requirement) are gated behind `DEALCODE_BUILD_TESTS`, which defaults to ON
+only when this project is the top-level build — consumers never need
+python3.
+
+## Consuming from another CMake project
+
+All three modes link the same target name, `dealcode::dealcode`, and only
+need OpenSSL installed:
+
+**`add_subdirectory`** (vendored checkout; tests off automatically because
+the project is not top-level):
+
+```cmake
+add_subdirectory(path/to/dealcode/cpp dealcode)
+target_link_libraries(myapp PRIVATE dealcode::dealcode)
+```
+
+**FetchContent**:
+
+```cmake
+include(FetchContent)
+FetchContent_Declare(dealcode
+    GIT_REPOSITORY https://github.com/algorix-hq/dealcode.git
+    GIT_TAG v1.0.0
+    SOURCE_SUBDIR cpp)
+FetchContent_MakeAvailable(dealcode)
+target_link_libraries(myapp PRIVATE dealcode::dealcode)
+```
+
+**`find_package` after installing** (installs the static core, both
+headers, and CMake package files, so downstream builds need no source
+checkout):
+
+```sh
+cmake -S cpp -B cpp/build && cmake --build cpp/build
+cmake --install cpp/build --prefix /usr/local    # or any prefix
+```
+
+```cmake
+find_package(dealcode 1.0 REQUIRED)   # CMAKE_PREFIX_PATH must reach the prefix
+target_link_libraries(myapp PRIVATE dealcode::dealcode)
+```
 
 ## Usage
 
@@ -41,7 +83,7 @@ dealcode::Codec codec("example-key", opts);   // string key rule (derived)
 // bytes rule: dealcode::Codec(std::vector<std::uint8_t>{...}, opts)
 //         or: dealcode::Codec(ptr, len, opts)
 
-std::string code = codec.encode(42);          // e.g. "4b71b7"
+std::string code = codec.encode(42);          // e.g. "59e5f2"
 uint64_t n = codec.decode(code);              // 42
 
 codec.capacity();    // min(radix^max_length, 2^63)
@@ -61,6 +103,21 @@ All failures throw exceptions rooted at `dealcode::Error`
 
 Out-of-memory conditions throw `std::bad_alloc`.
 
+Construction failures carry the C core's field-level diagnostic
+(`dealcode_new_ex`) in `what()`, e.g.
+`Codec(): alphabet: duplicate character 'a'` or
+`Codec(): string key "crockford" is a preset alphabet name — did you swap
+the key and alphabet fields?`.
+
+## Database integration
+
+dealcode only needs a never-repeating integer, which your database already
+produces: create a `bigint` sequence (or an identity/`AUTO_INCREMENT`
+column), fetch `nextval` through your driver (libpqxx, MySQL Connector/C++,
+soci, ...), and pass it to `codec.encode(n)` — a pure computation, no locks
+or extra round trips. The full recipe and rationale live in the
+[root README's "Wiring it to a database"](../README.md#wiring-it-to-a-database).
+
 ## Semantics
 
 - `Codec` is **move-only** (it owns the underlying C handle, including key
@@ -74,8 +131,9 @@ Out-of-memory conditions throw `std::bad_alloc`.
 `ctest` runs `tests/test_dealcode.cpp`, which regenerates the vector data
 from [`../testvectors/`](../testvectors) (via the C library's
 `gen_vectors.py`) and covers the official NIST FF1 samples, every dealcode
-v1 vector config, exception behaviour, move semantics, and roundtrip sweeps
-across stage boundaries.
+v1 vector config (including out-of-range counters and invalid configs),
+the preset-name guards, construction diagnostics, exception behaviour,
+move semantics, and roundtrip sweeps across stage boundaries.
 
 ## License
 

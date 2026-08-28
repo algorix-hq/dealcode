@@ -69,6 +69,13 @@ impl Normalization {
     }
 }
 
+/// The eight preset alphabet names (SPEC.md §3.1), for the misconfiguration
+/// guards: a custom alphabet or a string key that ASCII-case-insensitively
+/// equals one of these is rejected at build time.
+pub(crate) const PRESET_NAMES: [&str; 8] = [
+    "dec", "hex", "base32", "crockford", "base36", "base58", "base62", "base64url",
+];
+
 /// A resolved alphabet: canonical characters plus decode normalization.
 #[derive(Clone, Debug)]
 pub(crate) struct ResolvedAlphabet {
@@ -96,6 +103,17 @@ pub(crate) fn resolve(alphabet: &str) -> Result<ResolvedAlphabet, String> {
         "base62" => return Ok(preset("base62", BASE62, Normalization::None)),
         "base64url" => return Ok(preset("base64url", BASE64URL, Normalization::None)),
         _ => {}
+    }
+
+    // SPEC §3.2: a custom alphabet that ASCII-case-insensitively equals a
+    // preset name is almost certainly a misspelled preset — accepting it
+    // would silently build a codec over the letters of the name.
+    let lower = alphabet.to_ascii_lowercase();
+    if PRESET_NAMES.contains(&lower.as_str()) {
+        return Err(format!(
+            "custom alphabet {alphabet:?} matches the preset name {lower:?} — \
+             pass {lower:?} for the preset, or a genuinely custom alphabet"
+        ));
     }
 
     // Custom alphabet: 2-94 distinct printable ASCII characters (0x21-0x7E).

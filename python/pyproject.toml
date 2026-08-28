@@ -13,14 +13,23 @@ authors = [{ name = "Algorix Corporation" }]
 keywords = ["ff1", "format-preserving-encryption", "id", "code", "sequence"]
 classifiers = [
     "Intended Audience :: Developers",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Security :: Cryptography",
     "Topic :: Software Development :: Libraries",
+    "Typing :: Typed",
 ]
 dependencies = ["cryptography>=41"]
 
 [project.urls]
 Homepage = "https://github.com/algorix-hq/dealcode"
+Repository = "https://github.com/algorix-hq/dealcode"
+Issues = "https://github.com/algorix-hq/dealcode/issues"
 Specification = "https://github.com/algorix-hq/dealcode/blob/main/SPEC.md"
 
 [dependency-groups]

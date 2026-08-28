@@ -185,12 +185,21 @@ public final class Dealcode {
         if (code == null) {
             throw new InvalidCodeException("code must not be null");
         }
+        // Length gate before normalization: normalization is length-preserving,
+        // so this is behaviour-identical, and it keeps rejection of oversized
+        // garbage O(1) instead of normalizing megabytes first (SPEC §7). The
+        // gate counts code points when that is cheap so the message matches
+        // the other implementations; valid codes are ASCII, where the counts
+        // agree.
+        int gate = code.length() <= 4 * maxLength
+                ? code.codePointCount(0, code.length())
+                : code.length();
+        if (gate < minLength || gate > maxLength) {
+            throw new InvalidCodeException(
+                    "code length " + gate + " outside [" + minLength + ", " + maxLength + "]");
+        }
         String s = alphabet.normalize(code);
         int d = s.length();
-        if (d < minLength || d > maxLength) {
-            throw new InvalidCodeException(
-                    "code length " + d + " outside [" + minLength + ", " + maxLength + "]");
-        }
         int[] y = new int[d];
         for (int i = 0; i < d; i++) {
             char c = s.charAt(i);
@@ -345,6 +354,11 @@ public final class Dealcode {
          * key is exactly as strong as the passphrase; prefer at least 128 bits
          * of random material (e.g. {@code openssl rand -hex 32} output).
          *
+         * <p>A string key whose ASCII-lowercase equals a preset alphabet name
+         * (for example {@code "crockford"}) is rejected at {@link #build()} —
+         * it almost certainly means the key and alphabet arguments were
+         * swapped. Byte-array keys are unaffected.</p>
+         *
          * @param key the key material; must be non-empty
          * @return this builder
          * @throws ConfigException if {@code key} is null
@@ -366,6 +380,11 @@ public final class Dealcode {
          * alphabet string of 2–94 distinct printable ASCII characters
          * (0x21–0x7E). Preset names win on conflict. Custom alphabets have no
          * decode normalization. Default: {@code "hex"}.
+         *
+         * <p>A custom alphabet string that is not exactly a preset name but
+         * whose ASCII-lowercase is one (for example {@code "HEX"}) is rejected
+         * at {@link #build()} — pass the exact preset name for the preset, or
+         * a genuinely custom alphabet.</p>
          *
          * @param alphabet a preset name or custom alphabet string
          * @return this builder
@@ -507,6 +526,14 @@ public final class Dealcode {
             boolean direct;
             if (keyString != null) {
                 requireCleanUnicode(keyString, "string key material");
+                // A key that is (a miscased) preset alphabet name almost
+                // certainly means the key and alphabet arguments were swapped.
+                // byte[] keys are deliberate and unaffected.
+                if (Alphabet.PRESET_NAMES.contains(Alphabet.asciiLower(keyString))) {
+                    throw new ConfigException(
+                            "string key \"" + keyString + "\" is a preset alphabet name"
+                                    + " — did you swap the key and alphabet arguments?");
+                }
                 material = keyString.getBytes(StandardCharsets.UTF_8);
                 direct = false; // strings are always derived
             } else {

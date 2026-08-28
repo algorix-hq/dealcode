@@ -23,7 +23,11 @@ c/*.o
 c/tests/vectors.inc
 cpp/build/
 
+# docs (mkdocs build output)
+site/
+
 # editors
 .idea/
 .vscode/
 *.swp
+.DS_Store

@@ -8,7 +8,7 @@
 //! back to its counter for anyone holding the key.
 //!
 //! This crate implements format version 1 of the
-//! [dealcode spec](https://github.com/dealcode) exactly; codes are
+//! [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md) exactly; codes are
 //! byte-for-byte interoperable with every other conforming implementation.
 //!
 //! # Quickstart
@@ -177,6 +177,18 @@ impl Key {
             return Err(Error::Config(
                 "string key material must not contain U+0000".to_owned(),
             ));
+        }
+        // SPEC §2.1: a string key that ASCII-case-insensitively equals a
+        // preset alphabet name is almost certainly a swapped argument; no
+        // real key material collides with this tiny set. Bytes keys are
+        // unaffected.
+        if let KeyRepr::Text(s) = &self.0 {
+            if alphabets::PRESET_NAMES.contains(&s.to_ascii_lowercase().as_str()) {
+                return Err(Error::Config(format!(
+                    "string key {s:?} is a preset alphabet name — \
+                     did you swap the key and alphabet arguments?"
+                )));
+            }
         }
         if is_bytes && matches!(material.len(), 16 | 24 | 32) {
             return Ok(material.to_vec());

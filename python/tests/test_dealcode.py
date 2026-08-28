@@ -125,6 +125,38 @@ def test_config_errors():
         Dealcode("\udfff")
 
 
+def test_preset_lookalike_alphabet_rejected():
+    # ASCII-lowercase of a custom alphabet matching a preset name is a footgun
+    with pytest.raises(ConfigError, match="matches the preset name"):
+        Dealcode(KEY, "HEX")
+    with pytest.raises(ConfigError, match='pass "crockford" for the preset'):
+        Dealcode(KEY, "Crockford")
+    with pytest.raises(ConfigError, match="matches the preset name"):
+        Dealcode(KEY, "Base64URL")
+    # exact preset names still resolve as presets
+    assert Dealcode(KEY, "hex").alphabet == "0123456789abcdef"
+    # a genuinely custom alphabet is unaffected
+    assert Dealcode(KEY, "BCDFGHJKLMNPQRSTVWXZ", min_length=6).radix == 20
+
+
+def test_preset_name_as_string_key_rejected():
+    # a string key that is a preset alphabet name means swapped arguments
+    with pytest.raises(ConfigError, match="did you swap the key and alphabet"):
+        Dealcode("crockford")
+    with pytest.raises(ConfigError, match="preset alphabet name"):
+        Dealcode("HEX")  # ASCII-lowercase matches too
+    # bytes keys are unaffected
+    assert Dealcode(b"crockford").decode(Dealcode(b"crockford").encode(7)) == 7
+
+
+def test_unhashable_alphabet_raises_config_error():
+    # a non-str, unhashable alphabet must not leak a bare TypeError
+    with pytest.raises(ConfigError):
+        Dealcode(KEY, ["a", "b", "c"])  # type: ignore[arg-type]
+    with pytest.raises(ConfigError):
+        Dealcode(KEY, 123)  # type: ignore[arg-type]
+
+
 def test_key_material_flexibility():
     # openssl rand -hex 32 style string, passphrase, odd-length bytes: all work
     hex_str = "9f" * 32

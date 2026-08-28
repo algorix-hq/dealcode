@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img" aria-label="dealcode">
+  <!-- three fanned cards, dealt from a deck -->
+  <g fill="none" stroke="#ffffff" stroke-width="2.6" stroke-linejoin="round">
+    <rect x="6.5" y="12.5" width="17" height="24" rx="2.6" transform="rotate(-14 15 24.5)" opacity="0.45"/>
+    <rect x="13" y="10.8" width="17" height="24" rx="2.6" transform="rotate(-4 21.5 22.8)" opacity="0.72"/>
+    <rect x="20.5" y="10" width="17" height="24" rx="2.6" transform="rotate(8 29 22)" fill="#ffffff" fill-opacity="0.12"/>
+  </g>
+  <!-- pip on the top card -->
+  <circle cx="29.4" cy="23.6" r="3.1" fill="#ffffff" transform="rotate(8 29 22)"/>
+</svg>

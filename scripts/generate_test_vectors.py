@@ -11,7 +11,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python" / "src"))
 
-from dealcode import Dealcode  # noqa: E402
+from dealcode import ConfigError, Dealcode, InvalidCodeError, RangeError  # noqa: E402
 
 COUNTER_BOUND = 2**63
 
@@ -43,7 +43,50 @@ CONFIGS = [
     dict(name="base64url", key=KEY128, alphabet="base64url", min_length=4, domain=""),
     dict(name="custom-consonants", key=KEY192, alphabet="BCDFGHJKLMNPQRSTVWXZ", min_length=6, domain=""),
     dict(name="hex-fixed-8", key=KEY128, alphabet="hex", min_length=8, max_length=8, domain=""),
+    # --- coverage extensions (append-only; earlier configs must stay put) ---
+    dict(name="base36", key=KEY128, alphabet="base36", min_length=6, domain=""),
+    # smallest legal FF1 domain: r^min_length == 100 exactly
+    dict(name="dec-min2", key=KEY128, alphabet="dec", min_length=2, domain=""),
+    # code space of exactly 2^128: exercises the 128-bit arithmetic path
+    dict(name="hex-max32", key=KEY256, alphabet="hex", min_length=6, max_length=32, domain=""),
+    # code space of exactly 2^63: max_counter == 2^63 - 1 with no headroom
+    dict(name="octal-2pow63", key=KEY128, alphabet="01234567", min_length=21, max_length=21, domain=""),
+    # radix extremes: 2 (smallest) and 94 (every printable ASCII char)
+    dict(name="binary", key=KEY128, alphabet="01", min_length=7, domain=""),
+    dict(name="printable94", key=KEY256, alphabet="".join(chr(c) for c in range(0x21, 0x7F)), min_length=2, domain=""),
+    # a hex-looking STRING key must be KDF'd as UTF-8, never hex-decoded:
+    # these two configs must NOT produce the same codes
+    dict(name="hexlike-string-key", key="deadbeefdeadbeefdeadbeefdeadbeef", alphabet="hex", min_length=6, domain=""),
+    dict(name="hexlike-bytes-key", key=bytes.fromhex("deadbeefdeadbeefdeadbeefdeadbeef"), alphabet="hex", min_length=6, domain=""),
+    # multi-byte UTF-8 in key material and tweak (domain)
+    dict(name="korean-string-key", key="딜코드 비밀 키 🔑", alphabet="hex", min_length=6, domain=""),
+    dict(name="korean-domain", key=KEY128, alphabet="hex", min_length=6, domain="주문·쿠폰"),
+    # domain at the 255-UTF-8-byte limit (85 three-byte characters)
+    dict(name="domain-255b", key=KEY128, alphabet="hex", min_length=6, domain="가" * 85),
 ]
+
+# Constructions every implementation must reject with its ConfigError kind.
+INVALID_CONFIGS = [
+    dict(name="empty-key", key_string="", alphabet="hex", min_length=6),
+    dict(name="duplicate-alphabet-chars", key_hex=KEY128.hex(), custom_alphabet="abcabc", min_length=6),
+    dict(name="codespace-under-100", key_hex=KEY128.hex(), custom_alphabet="abcdefghi", min_length=2),  # 9^2 = 81 < 100
+    dict(name="min-length-one", key_hex=KEY128.hex(), alphabet="hex", min_length=1),
+    dict(name="min-above-max", key_hex=KEY128.hex(), alphabet="hex", min_length=8, max_length=6),
+    dict(name="domain-256-bytes", key_hex=KEY128.hex(), alphabet="hex", min_length=6, domain="x" * 256),
+    dict(name="alphabet-with-space", key_hex=KEY128.hex(), custom_alphabet="abc def", min_length=4),
+    dict(name="alphabet-non-ascii", key_hex=KEY128.hex(), custom_alphabet="abcdé", min_length=4),
+    dict(name="alphabet-one-char", key_hex=KEY128.hex(), custom_alphabet="a", min_length=8),
+    dict(name="codespace-over-2pow128", key_hex=KEY128.hex(), alphabet="hex", min_length=6, max_length=33),
+    # guard: custom alphabet that case-insensitively matches a preset name
+    dict(name="preset-lookalike-alphabet", key_hex=KEY128.hex(), custom_alphabet="HEX", min_length=6),
+    # guard: string key that equals a preset name (swapped arguments)
+    dict(name="preset-name-as-key", key_string="crockford", alphabet="hex", min_length=6),
+]
+
+# Counters every implementation must reject with its RangeError kind (as
+# strings; a language whose counter type cannot even represent the value may
+# treat unrepresentability as the rejection).
+RANGE_COUNTERS = ["-1", str(COUNTER_BOUND), str(2**64)]
 
 
 def samples(lo: int, hi: int, count: int = 3):
@@ -65,6 +108,14 @@ def counters_for(codec: Dealcode):
     if M > m + 1 and r ** (m + 1) < cap:
         ns.update({r ** (m + 1), min(r ** (m + 2), cap) - 1})
         ns.update(samples(r ** (m + 1), min(r ** (m + 2), cap)))
+    # exact first/last counter of every remaining stage
+    for d in range(m + 3, M + 1):
+        lo = r ** (d - 1)
+        if lo >= cap:
+            break
+        ns.update({lo - 1, lo, min(r**d, cap) - 1})
+    # the IEEE-double / JS Number.MAX_SAFE_INTEGER seam
+    ns.update({2**53 - 1, 2**53, 2**53 + 1})
     ns.add(cap - 1)
     ns.update(samples(0, cap, 4))
     return sorted(n for n in ns if 0 <= n < cap)
@@ -87,26 +138,57 @@ def invalid_codes_for(codec: Dealcode) -> list:
     chars = codec.alphabet
     r, m, M = codec.radix, codec.min_length, codec.max_length
     bad = [chars[0] * (m - 1)]  # too short
-    if M < 24:
+    if M < 130:
         bad.append(chars[0] * (M + 1))  # too long
+    # some character outside the alphabet (absent for printable94, where
+    # every printable ASCII char is inside)
     outside = next(
-        chr(c)
-        for c in range(0x21, 0x7F)
-        if chr(c) not in set(chars) and chr(c) not in '"\\'
+        (
+            chr(c)
+            for c in range(0x21, 0x7F)
+            if chr(c) not in set(chars) and chr(c) not in '"\\'
+        ),
+        None,
     )
-    bad.append(outside + chars[0] * (m - 1))
+    if outside is not None:
+        bad.append(outside + chars[0] * (m - 1))
+    # decode must never trim or Unicode-normalize
+    bad.append("")
+    bad.append(" " + chars[0] * (m - 1))
+    bad.append(chars[0] * (m - 1) + "\n")
+    bad.append("ｅ" * m)  # fullwidth lookalikes
     if M > m:
         # stage-range violations at d = m+1: first and last forbidden value
         d = m + 1
         for v in (r**d - r ** (d - 1), r**d - 1):
             bad.append(_encrypt_raw(codec, v, d))
     if r**M > COUNTER_BOUND:
-        # counter-bound violations at d = M
-        base = 0 if M == m else r ** (M - 1)
-        first_over = COUNTER_BOUND - base
-        stage_cap = r**M - base
-        for v in {first_over, stage_cap - 1}:
-            bad.append(_encrypt_raw(codec, v, M))
+        # counter-bound violations, aimed at the stages where they can occur:
+        # the stage whose value range straddles 2^63, the first fully
+        # unreachable stage, and the last stage.
+        def stage_base(d: int) -> int:
+            return 0 if d == m else r ** (d - 1)
+
+        targets = []
+        crossing = [d for d in range(m, M + 1) if stage_base(d) < COUNTER_BOUND < r**d]
+        if crossing:
+            d = crossing[0]
+            first_over = COUNTER_BOUND - stage_base(d)
+            targets.append((d, first_over))  # decodes to exactly 2^63
+            targets.append((d, r**d - stage_base(d) - 1))
+        unreachable = [d for d in range(m, M + 1) if stage_base(d) >= COUNTER_BOUND]
+        for d in {unreachable[0], M} if unreachable else set():
+            targets.append((d, 0))
+            targets.append((d, r**d - stage_base(d) - 1))
+        for d, v in dict.fromkeys(targets):
+            bad.append(_encrypt_raw(codec, v, d))
+    for code in bad:
+        try:
+            codec.decode(code)
+        except InvalidCodeError:
+            pass
+        else:
+            raise AssertionError(f"invalid code accepted: {code!r}")
     return bad
 
 
@@ -125,6 +207,14 @@ def normalize_cases_for(codec: Dealcode, name: str):
         code = codec.encode(probe)
         mangled = code.lower().replace("0", "o").replace("1", "i")
         cases.append({"input": mangled, "n": str(probe)})
+        # pin the O->0 and L/l->1 mappings too: find a nearby code that
+        # actually contains a 0 or 1
+        for n in range(probe, probe + 4096):
+            code = codec.encode(n)
+            if "0" in code or "1" in code:
+                cases.append({"input": code.replace("0", "O").replace("1", "L"), "n": str(n)})
+                cases.append({"input": code.replace("1", "l"), "n": str(n)})
+                break
     return cases
 
 
@@ -160,7 +250,34 @@ def main() -> None:
             cfg["vectors"].append({"n": str(n), "code": code})
         cfg["invalid_codes"] = invalid_codes_for(codec)
         cfg["normalize"] = normalize_cases_for(codec, alphabet)
+        counters = ["-1", str(codec.capacity)] + RANGE_COUNTERS
+        cfg["range_counters"] = list(dict.fromkeys(counters))
+        for c_str in cfg["range_counters"]:
+            try:
+                codec.encode(int(c_str))
+            except RangeError:
+                pass
+            else:
+                raise AssertionError(f"range counter accepted: {c_str}")
         out["configs"].append(cfg)
+
+    out["invalid_configs"] = []
+    for ic in INVALID_CONFIGS:
+        entry = {k: v for k, v in ic.items()}
+        kwargs = dict(
+            min_length=ic.get("min_length"),
+            max_length=ic.get("max_length"),
+            domain=ic.get("domain", ""),
+        )
+        key = bytes.fromhex(ic["key_hex"]) if "key_hex" in ic else ic["key_string"]
+        alphabet = ic.get("custom_alphabet", ic.get("alphabet"))
+        try:
+            Dealcode(key, alphabet, **{k: v for k, v in kwargs.items() if v is not None})
+        except ConfigError:
+            pass
+        else:
+            raise AssertionError(f"invalid config accepted: {ic['name']}")
+        out["invalid_configs"].append(entry)
 
     path = ROOT / "testvectors" / "v1.json"
     path.write_text(json.dumps(out, indent=2) + "\n")

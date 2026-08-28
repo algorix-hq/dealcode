@@ -68,6 +68,11 @@ function crockfordNormalize(s: string): string {
   return out;
 }
 
+/** True when the ASCII-lowercase of `s` is a preset alphabet name. */
+export function matchesPresetName(s: string): boolean {
+  return Object.prototype.hasOwnProperty.call(ALPHABETS, asciiLower(s));
+}
+
 const NORMALIZERS: Record<AlphabetName, (s: string) => string> = {
   dec: identity,
   hex: asciiLower,
@@ -85,11 +90,27 @@ const NORMALIZERS: Record<AlphabetName, (s: string) => string> = {
  * message on invalid custom alphabets; the codec wraps it in `ConfigError`.
  */
 export function resolveAlphabet(alphabet: string): ResolvedAlphabet {
-  if (Object.prototype.hasOwnProperty.call(ALPHABETS, alphabet)) {
+  if (
+    typeof alphabet === "string" &&
+    Object.prototype.hasOwnProperty.call(ALPHABETS, alphabet)
+  ) {
     const name = alphabet as AlphabetName;
     return { name, chars: ALPHABETS[name], normalize: NORMALIZERS[name] };
   }
-  if (typeof alphabet !== "string" || alphabet.length < 2 || alphabet.length > 94) {
+  if (typeof alphabet !== "string") {
+    throw new Error(
+      "custom alphabet must be a string of 2-94 characters " +
+        "(or one of the preset names: " + Object.keys(ALPHABETS).join(", ") + ")",
+    );
+  }
+  const lowered = asciiLower(alphabet);
+  if (Object.prototype.hasOwnProperty.call(ALPHABETS, lowered)) {
+    throw new Error(
+      `custom alphabet "${alphabet}" matches the preset name "${lowered}" ` +
+        `— pass "${lowered}" for the preset, or a genuinely custom alphabet`,
+    );
+  }
+  if (alphabet.length < 2 || alphabet.length > 94) {
     throw new Error(
       "custom alphabet must be a string of 2-94 characters " +
         "(or one of the preset names: " + Object.keys(ALPHABETS).join(", ") + ")",

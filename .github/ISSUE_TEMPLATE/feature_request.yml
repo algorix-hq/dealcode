@@ -1,0 +1,21 @@
+name: Feature request
+description: Propose an API, packaging, or spec change
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What should change, and why?
+    validations:
+      required: true
+  - type: dropdown
+    id: compat
+    attributes:
+      label: Does it change encode output or decode acceptance?
+      description: >-
+        Format v1 outputs are frozen forever. Output-affecting changes mean a
+        new format version (see CONTRIBUTING.md) — that's fine, just say so.
+      options: ["no", "yes (needs a new format version)", "not sure"]
+    validations:
+      required: true

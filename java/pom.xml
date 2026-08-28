@@ -16,7 +16,7 @@
     encryption (NIST SP 800-38G) plus an alphabet layer, length staging, and
     tweak/domain derivation. Zero runtime dependencies.
   </description>
-  <url>https://github.com/algorix/dealcode</url>
+  <url>https://github.com/algorix-hq/dealcode</url>
 
   <licenses>
     <license>
@@ -25,6 +25,27 @@
       <distribution>repo</distribution>
     </license>
   </licenses>
+
+  <developers>
+    <developer>
+      <id>algorix</id>
+      <name>Algorix Engineering</name>
+      <organization>Algorix Corporation</organization>
+      <organizationUrl>https://github.com/algorix-hq</organizationUrl>
+    </developer>
+  </developers>
+
+  <scm>
+    <connection>scm:git:https://github.com/algorix-hq/dealcode.git</connection>
+    <developerConnection>scm:git:https://github.com/algorix-hq/dealcode.git</developerConnection>
+    <url>https://github.com/algorix-hq/dealcode</url>
+    <tag>main</tag>
+  </scm>
+
+  <issueManagement>
+    <system>GitHub Issues</system>
+    <url>https://github.com/algorix-hq/dealcode/issues</url>
+  </issueManagement>
 
   <properties>
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -53,6 +74,16 @@
   </dependencies>
 
   <build>
+    <resources>
+      <!-- ship the license text inside the jar -->
+      <resource>
+        <directory>${project.basedir}</directory>
+        <includes>
+          <include>LICENSE</include>
+        </includes>
+        <targetPath>META-INF</targetPath>
+      </resource>
+    </resources>
     <plugins>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
@@ -64,6 +95,82 @@
         <artifactId>maven-compiler-plugin</artifactId>
         <version>3.13.0</version>
       </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.4.1</version>
+        <configuration>
+          <archive>
+            <manifestEntries>
+              <Automatic-Module-Name>io.algorix.dealcode</Automatic-Module-Name>
+            </manifestEntries>
+          </archive>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-source-plugin</artifactId>
+        <version>3.3.1</version>
+        <executions>
+          <execution>
+            <id>attach-sources</id>
+            <goals>
+              <goal>jar-no-fork</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-javadoc-plugin</artifactId>
+        <version>3.11.2</version>
+        <executions>
+          <execution>
+            <id>attach-javadocs</id>
+            <goals>
+              <goal>jar</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
     </plugins>
   </build>
+
+  <!-- Release to Maven Central: `mvn -Prelease deploy`. Requires a GPG key
+       and a Sonatype Central Portal token (server id "central" in
+       ~/.m2/settings.xml); normal builds need neither. autoPublish is false:
+       the deployment waits in the Central Portal UI for a manual "Publish". -->
+  <profiles>
+    <profile>
+      <id>release</id>
+      <build>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-gpg-plugin</artifactId>
+            <version>3.2.7</version>
+            <executions>
+              <execution>
+                <id>sign-artifacts</id>
+                <phase>verify</phase>
+                <goals>
+                  <goal>sign</goal>
+                </goals>
+              </execution>
+            </executions>
+          </plugin>
+          <plugin>
+            <groupId>org.sonatype.central</groupId>
+            <artifactId>central-publishing-maven-plugin</artifactId>
+            <version>0.7.0</version>
+            <extensions>true</extensions>
+            <configuration>
+              <publishingServerId>central</publishingServerId>
+              <autoPublish>false</autoPublish>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
 </project>

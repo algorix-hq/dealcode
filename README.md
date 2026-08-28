@@ -1,6 +1,6 @@
 # dealcode
 
-**English** | [한국어](README.ko.md)
+**English** | [한국어](README.ko.md) · **Docs:** <https://algorix-hq.github.io/dealcode/>
 
 Collision-free, random-looking codes from a counter — like dealing cards from
 a shuffled deck. Every card comes out exactly once; the order looks random;
@@ -10,7 +10,7 @@ the dealer only remembers how many cards have been dealt.
 counter:  0        1        2        3        ...      16,777,216
            │        │        │        │                  │
            ▼        ▼        ▼        ▼                  ▼
-code:    c4334d   38fa1e   f3afe1   40a466   ...       f60eebef   ← grew to 7 chars
+code:    d568e1   f7f229   0f868d   f37ff8   ...       7b11743    ← grew to 7 chars
                                                                     only when 6 ran out
 ```
 
@@ -42,8 +42,13 @@ bit-identical.
 | Go       | [`go/`](go/) | `go get github.com/algorix-hq/dealcode/go` | standard library |
 | Java     | [`java/`](java/) | Maven `io.algorix:dealcode` | JCE (built-in) |
 | Rust     | [`rust/`](rust/) | `cargo add dealcode` | RustCrypto `aes`, `sha2` |
-| C        | [`c/`](c/) | vendored / static lib | OpenSSL libcrypto |
-| C++      | [`cpp/`](cpp/) | wraps the C core | OpenSSL libcrypto |
+| C        | [`c/`](c/) | `make install` / vendored (GCC/Clang: needs `__int128`) | OpenSSL libcrypto |
+| C++      | [`cpp/`](cpp/) | CMake (wraps the C core) | OpenSSL libcrypto |
+
+> Registry packages (PyPI/npm/Maven Central/crates.io) are **not published
+> yet** — v1.0.0 releases are pending. Until then each directory's README
+> shows how to consume from source; Go modules already resolve from this
+> repository.
 
 Everything else is dependency-free by design: FF1 and the dealcode layer are
 implemented from the NIST specification in each language and validated against
@@ -65,9 +70,9 @@ codec.decode("f7f229")   # 1
 Pick the shape your product needs:
 
 ```python
-Dealcode(key, "crockford", domain="coupons")       # 'ZV6NQ0' — human-friendly, confusables handled
-Dealcode(key, "dec",       domain="orders")        # '839207' — digits only
-Dealcode(key, "base62",    min_length=8)           # 'tHx93bQk'
+Dealcode(key, "crockford", domain="coupons")       # e.g. 'ZV6NQ0' — human-friendly, confusables handled
+Dealcode(key, "dec",       domain="orders")        # e.g. '839207' — digits only
+Dealcode(key, "base62",    min_length=8)           # e.g. 'tHx93bQk'
 Dealcode(key, "hex", min_length=16, max_length=16) # fixed-length tokens
 Dealcode(key, "!@#$%^&*")                          # your own alphabet, why not
 ```
@@ -105,6 +110,10 @@ outputs. A `UNIQUE` index on `code` is a tripwire, not a mechanism: if it ever
 fires, someone changed the key or config mid-namespace — investigate, don't
 retry. Per-language READMEs show the same recipe idiomatically; MySQL and
 others work with `AUTO_INCREMENT`/identity columns the same way.
+
+One practical note: `decode` never trims — a copy-pasted code with a stray
+space or newline is rejected as invalid. `strip()`/`trim()` user input
+before decoding.
 
 ## When to use it — and when not to
 
@@ -146,7 +155,9 @@ scripts/           test-vector generator (runs against the Python reference)
 
 Contributions and new language ports welcome — a port is conformant when it
 passes both vector files. Spec changes require regenerating vectors and a
-format-version bump.
+format-version bump. See [CONTRIBUTING.md](CONTRIBUTING.md); please report
+suspected vulnerabilities privately per [SECURITY.md](SECURITY.md), and be
+excellent to each other per the [Code of Conduct](CODE_OF_CONDUCT.md).
 
 ## License
 

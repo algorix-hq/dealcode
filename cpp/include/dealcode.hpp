@@ -13,7 +13,7 @@
  *     opts.domain = "orders";
  *     dealcode::Codec codec("example-key", opts);   // string key rule
  *
- *     std::string code = codec.encode(42);          // e.g. "4b71b7"
+ *     std::string code = codec.encode(42);          // e.g. "59e5f2"
  *     uint64_t n = codec.decode(code);              // 42
  * @endcode
  *
@@ -23,7 +23,9 @@
  *    across threads once constructed.
  *  - Errors are thrown as exceptions: ConfigError, RangeError,
  *    InvalidCodeError (all deriving from dealcode::Error, which derives
- *    from std::runtime_error).
+ *    from std::runtime_error). Construction failures carry the C core's
+ *    field-level diagnostic (via dealcode_new_ex) in what(), e.g.
+ *    "Codec(): alphabet: duplicate character 'a'".
  *
  * Link requirement: the dealcode C core and OpenSSL libcrypto
  * (the provided CMakeLists.txt handles both).
@@ -91,10 +93,9 @@ struct Deleter {
     void operator()(dealcode_t *dc) const noexcept { dealcode_free(dc); }
 };
 
-[[noreturn]] inline void throw_error(dealcode_err_t err,
-                                     const std::string &context)
+[[noreturn]] inline void throw_error_what(dealcode_err_t err,
+                                          const std::string &what)
 {
-    const std::string what = context + ": " + dealcode_strerror(err);
     switch (err) {
     case DEALCODE_ERR_CONFIG:
         throw ConfigError(what);
@@ -107,6 +108,12 @@ struct Deleter {
     default:
         throw Error(what);
     }
+}
+
+[[noreturn]] inline void throw_error(dealcode_err_t err,
+                                     const std::string &context)
+{
+    throw_error_what(err, context + ": " + dealcode_strerror(err));
 }
 
 /* The C API takes NUL-terminated strings, so an embedded U+0000 cannot be
@@ -186,8 +193,15 @@ public:
         std::uint64_t n = 0;
         const dealcode_err_t err =
             dealcode_decode(handle_.get(), code_copy.c_str(), &n);
-        if (err != DEALCODE_OK)
-            detail::throw_error(err, "decode(\"" + code_copy + "\")");
+        if (err != DEALCODE_OK) {
+            /* Echo at most a prefix of the (attacker-controlled) input so
+             * what() stays small for oversized garbage. */
+            constexpr std::size_t kEcho = 64;
+            std::string shown = code_copy.substr(0, kEcho);
+            if (code_copy.size() > kEcho)
+                shown += "…(" + std::to_string(code_copy.size()) + " bytes)";
+            detail::throw_error(err, "decode(\"" + shown + "\")");
+        }
         return n;
     }
 
@@ -212,10 +226,11 @@ public:
     /** Alphabet size (number of characters). */
     int radix() const noexcept { return dealcode_radix(handle_.get()); }
 
-    /** The alphabet characters, in numeral order. */
+    /** The alphabet characters, in numeral order (empty if moved-from). */
     std::string_view alphabet() const noexcept
     {
-        return dealcode_alphabet(handle_.get());
+        const char *chars = dealcode_alphabet(handle_.get());
+        return chars ? std::string_view(chars) : std::string_view();
     }
 
 private:
@@ -238,9 +253,16 @@ private:
             throw ConfigError("min_length must be >= 2");
 
         dealcode_t *dc = nullptr;
-        const dealcode_err_t err = dealcode_new(&cfg, &dc);
-        if (err != DEALCODE_OK)
-            detail::throw_error(err, "Codec()");
+        char errbuf[DEALCODE_ERRBUF_SIZE];
+        const dealcode_err_t err =
+            dealcode_new_ex(&cfg, &dc, errbuf, sizeof errbuf);
+        if (err != DEALCODE_OK) {
+            /* Prefer the C core's field-level diagnostic (e.g. "alphabet:
+             * duplicate character 'a'") over the generic strerror text. */
+            const std::string detail =
+                errbuf[0] != '\0' ? errbuf : dealcode_strerror(err);
+            detail::throw_error_what(err, "Codec(): " + detail);
+        }
         handle_.reset(dc);
     }
 

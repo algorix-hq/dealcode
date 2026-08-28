@@ -25,6 +25,39 @@ Compile against the header in `include/` and link the static library:
 cc -Ic/include myapp.c c/libdealcode.a -lcrypto
 ```
 
+### Install and pkg-config
+
+`make install` installs the static library, the header, and a generated
+`dealcode.pc`, honoring `PREFIX` (default `/usr/local`) and `DESTDIR` for
+staged/packaged installs (`LIBDIR`, `INCLUDEDIR`, `PKGCONFIGDIR` can also be
+overridden individually):
+
+```sh
+make install PREFIX=/usr/local            # may need sudo
+make install DESTDIR=/tmp/stage           # staged install for packaging
+```
+
+Consumers can then build with pkg-config (`Requires.private: libcrypto`, so
+static links add `-lcrypto` via `--static`):
+
+```sh
+cc myapp.c $(pkg-config --cflags --libs dealcode) -lcrypto
+```
+
+The installed header defines `DEALCODE_VERSION` (`"1.0.0"`), which is also
+the `Version` reported by `pkg-config --modversion dealcode`.
+
+### Sanitizers and custom flags
+
+`CFLAGS` only carries optimization/debug flags; the flags the build requires
+(`-std=c11`, warnings, `-Iinclude`) are appended via `override`, so
+`make test CFLAGS=-g` cannot break the build. `EXTRA_CFLAGS` is appended
+last and reaches both compile and test-link steps — the sanitizer seam:
+
+```sh
+make test EXTRA_CFLAGS='-fsanitize=address,undefined -fno-sanitize-recover=all -g -O1'
+```
+
 ## Usage
 
 ```c
@@ -46,7 +79,7 @@ if (err != DEALCODE_OK) {
 }
 
 char code[DEALCODE_MAX_CODE_SIZE];
-dealcode_encode(dc, 42, code, sizeof code);   /* -> e.g. "4b71b7" */
+dealcode_encode(dc, 42, code, sizeof code);   /* -> e.g. "59e5f2" */
 
 uint64_t n;
 dealcode_decode(dc, code, &n);                /* -> 42 */
@@ -56,8 +89,11 @@ dealcode_free(dc);
 
 See `include/dealcode.h` for the full, documented API:
 
-- `dealcode_new` / `dealcode_free` — codec lifecycle (opaque handle,
-  no global state).
+- `dealcode_new` / `dealcode_new_ex` / `dealcode_free` — codec lifecycle
+  (opaque handle, no global state). `dealcode_new_ex` additionally writes a
+  one-line diagnostic naming the offending field into a caller-supplied
+  buffer on failure (e.g. `alphabet: duplicate character 'a'`,
+  `min_length 1 < 2`); size it with `DEALCODE_ERRBUF_SIZE`.
 - `dealcode_encode` / `dealcode_decode` — the counter <-> code bijection.
 - `dealcode_capacity`, `dealcode_min_length`, `dealcode_max_length`,
   `dealcode_radix`, `dealcode_alphabet` — introspection.
@@ -65,6 +101,17 @@ See `include/dealcode.h` for the full, documented API:
 
 Errors are explicit `dealcode_err_t` return codes; on failure nothing is
 written to output parameters (except `*out = NULL` in `dealcode_new`).
+
+## Database integration
+
+dealcode only needs a never-repeating integer, which your database already
+produces: create a `bigint` sequence (or use an identity/`AUTO_INCREMENT`
+column), fetch `nextval` from C through your driver of choice (libpq,
+MySQL C API, sqlite3), and pass it to `dealcode_encode` — a pure
+computation, no locks or extra round trips. The full recipe (sequence DDL,
+why gaps are fine, and why a `UNIQUE` index on the code column is a
+tripwire rather than a mechanism) is in the
+[root README's "Wiring it to a database"](../README.md#wiring-it-to-a-database).
 
 ## Thread safety
 
@@ -78,8 +125,11 @@ cipher context per call, so concurrent calls on one handle are safe.
 [`../testvectors/`](../testvectors) via `tests/gen_vectors.py` and runs
 `tests/test_dealcode.c`, which covers the 9 official NIST FF1 sample vectors
 (through the private FF1 seam in `src/ff1.h`), every dealcode v1 test-vector
-config, error behaviour, and large roundtrip sweeps across stage boundaries —
-including configurations where `radix^max_length` is exactly `2^128`.
+config (encode/decode pairs, invalid codes, normalization, out-of-range
+counters), every invalid-config vector, the preset-name guards for alphabets
+and string keys, `dealcode_new_ex` diagnostics, error behaviour, and large
+roundtrip sweeps across stage boundaries — including configurations where
+`radix^max_length` is exactly `2^128`.
 
 ## License
 

@@ -9,14 +9,47 @@ on:
   workflow_dispatch:
     inputs:
       only:
-        description: "Run a single job (python|js|go|java|rust|c-cpp) or 'all'"
+        description: "Run a single job, or all"
+        type: choice
         required: false
-        default: "all"
+        default: all
+        options:
+          - all
+          - vectors
+          - python
+          - js
+          - go
+          - java
+          - rust
+          - c-cpp
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
+  # The committed vectors must be exactly what the reference generator emits.
+  vectors:
+    if: ${{ inputs.only == 'all' || inputs.only == 'vectors' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ./python
+      - run: python3 scripts/generate_test_vectors.py
+      # git diff alone is blind to newly created (untracked) files
+      - run: git diff --exit-code testvectors/ && test -z "$(git status --porcelain testvectors/)"
+
   python:
     if: ${{ inputs.only == 'all' || inputs.only == 'python' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         python-version: ["3.9", "3.12"]
@@ -31,6 +64,7 @@ jobs:
   js:
     if: ${{ inputs.only == 'all' || inputs.only == 'js' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     strategy:
       matrix:
         node-version: ["18", "22"]
@@ -39,7 +73,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-      - run: npm install
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+      - run: npm ci
         working-directory: js
       - run: npm run build && npm test
         working-directory: js
@@ -47,17 +83,22 @@ jobs:
   go:
     if: ${{ inputs.only == 'all' || inputs.only == 'go' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version: "1.22"
+          cache-dependency-path: go/go.mod
+      - run: test -z "$(gofmt -l .)"
+        working-directory: go
       - run: go vet ./... && go test -race ./...
         working-directory: go
 
   java:
     if: ${{ inputs.only == 'all' || inputs.only == 'java' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -71,19 +112,29 @@ jobs:
   rust:
     if: ${{ inputs.only == 'all' || inputs.only == 'rust' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@1.75.0
         with:
           components: clippy
-      - run: cargo clippy -- -D warnings && cargo test
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: rust
+      - run: cargo clippy --all-targets -- -D warnings && cargo test
         working-directory: rust
 
   c-cpp:
     if: ${{ inputs.only == 'all' || inputs.only == 'c-cpp' }}
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
       - run: sudo apt-get update && sudo apt-get install -y libssl-dev cmake
       - run: make -C c test
+      - name: C tests under ASan+UBSan
+        run: |
+          make -C c clean
+          make -C c test EXTRA_CFLAGS="-fsanitize=address,undefined -fno-sanitize-recover=all"
+          make -C c clean
       - run: cmake -S cpp -B cpp/build && cmake --build cpp/build && ctest --test-dir cpp/build --output-on-failure

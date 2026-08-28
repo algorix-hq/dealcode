@@ -10,6 +10,7 @@ use serde::Deserialize;
 struct File {
     spec: String,
     configs: Vec<Config>,
+    invalid_configs: Vec<InvalidConfig>,
 }
 
 #[derive(Deserialize)]
@@ -28,6 +29,30 @@ struct Config {
     vectors: Vec<Vector>,
     invalid_codes: Vec<String>,
     normalize: Vec<Normalize>,
+    /// Decimal strings that `encode` must reject with `Error::Range`; values
+    /// not representable as u64 are covered by the type system instead.
+    #[serde(default)]
+    range_counters: Vec<String>,
+}
+
+/// A configuration that must be rejected at build time with `Error::Config`.
+#[derive(Deserialize)]
+struct InvalidConfig {
+    name: String,
+    #[serde(default)]
+    alphabet: Option<String>,
+    #[serde(default)]
+    custom_alphabet: Option<String>,
+    #[serde(default)]
+    key_hex: Option<String>,
+    #[serde(default)]
+    key_string: Option<String>,
+    #[serde(default)]
+    min_length: Option<usize>,
+    #[serde(default)]
+    max_length: Option<usize>,
+    #[serde(default)]
+    domain: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -121,6 +146,62 @@ fn v1_vectors() {
                 config.name,
                 case.input
             );
+        }
+
+        for counter in &config.range_counters {
+            // "-1" and "18446744073709551616" (2^64) do not fit u64: the
+            // counter type itself rules them out, so there is nothing to
+            // test. "9223372036854775808" (2^63) does parse and must be
+            // rejected.
+            let Ok(n) = counter.parse::<u64>() else { continue };
+            match codec.encode(n) {
+                Err(Error::Range { n: got, capacity }) => {
+                    assert_eq!(got, n, "{}: Range error echoes the counter", config.name);
+                    assert_eq!(capacity, codec.capacity(), "{}: Range error capacity", config.name);
+                }
+                other => panic!(
+                    "{}: encode({n}) should be Err(Range), got {other:?}",
+                    config.name
+                ),
+            }
+        }
+    }
+}
+
+/// Every `invalid_configs` entry must be rejected at build time with
+/// `Error::Config`.
+#[test]
+fn v1_invalid_configs() {
+    let file = load();
+    assert!(!file.invalid_configs.is_empty());
+
+    for config in &file.invalid_configs {
+        let mut builder = match (&config.key_hex, &config.key_string) {
+            (Some(hex), None) => Dealcode::builder(unhex(hex)),
+            (None, Some(s)) => Dealcode::builder(s.as_str()),
+            _ => panic!("config {} must have exactly one of key_hex/key_string", config.name),
+        };
+        let alphabet = match (&config.custom_alphabet, &config.alphabet) {
+            (Some(custom), _) => custom.as_str(),
+            (None, Some(preset)) => preset.as_str(),
+            (None, None) => panic!("config {} has no alphabet", config.name),
+        };
+        builder = builder.alphabet(alphabet);
+        if let Some(min_length) = config.min_length {
+            builder = builder.min_length(min_length);
+        }
+        if let Some(max_length) = config.max_length {
+            builder = builder.max_length(max_length);
+        }
+        if let Some(domain) = &config.domain {
+            builder = builder.domain(domain.as_str());
+        }
+        match builder.build() {
+            Err(Error::Config(_)) => {}
+            other => panic!(
+                "{}: build should be Err(Config), got {other:?}",
+                config.name
+            ),
         }
     }
 }

@@ -158,10 +158,51 @@ static void test_v1_vectors()
                       cfg.normalize[j].input,
                       static_cast<unsigned long long>(cfg.normalize[j].n));
             }
+
+            for (std::size_t j = 0; j < cfg.n_range_counters; j++) {
+                bool threw = false;
+                try {
+                    codec.encode(cfg.range_counters[j]);
+                } catch (const dealcode::RangeError &) {
+                    threw = true;
+                }
+                CHECK(threw, "v1 %s: encode(%llu) must throw RangeError",
+                      cfg.name,
+                      static_cast<unsigned long long>(cfg.range_counters[j]));
+            }
         } catch (const std::exception &e) {
             CHECK(false, "v1 %s: unexpected exception: %s", cfg.name,
                   e.what());
         }
+    }
+}
+
+static void test_v1_invalid_configs()
+{
+    for (std::size_t i = 0; i < TV_V1_INVALID_CONFIG_COUNT; i++) {
+        const tv_invalid_config_t &tv = TV_V1_INVALID_CONFIGS[i];
+        bool threw = false;
+        std::string what;
+        try {
+            dealcode::Options opts;
+            opts.alphabet = tv.alphabet;
+            if (tv.min_length != 0)
+                opts.min_length = tv.min_length;
+            if (tv.max_length != 0)
+                opts.max_length = tv.max_length;
+            if (tv.domain != nullptr)
+                opts.domain = tv.domain;
+            if (tv.key_hex != nullptr)
+                dealcode::Codec(hex_decode(tv.key_hex), opts);
+            else
+                dealcode::Codec(std::string_view(tv.key_string), opts);
+        } catch (const dealcode::ConfigError &e) {
+            threw = true;
+            what = e.what();
+        }
+        CHECK(threw, "invalid-config %s: must throw ConfigError", tv.name);
+        CHECK(threw && what.size() > std::string("Codec(): ").size(),
+              "invalid-config %s: what() must carry a diagnostic", tv.name);
     }
 }
 
@@ -295,6 +336,136 @@ static void test_exceptions()
               "invalid: derives from Error");
         CHECK(throws<std::runtime_error>([&] { codec.decode(""); }),
               "invalid: derives from std::runtime_error");
+    }
+}
+
+// Guard A: custom alphabet ASCII-case-insensitively equal to a preset name
+// (but not exactly the preset name) must be rejected; Guard B: a STRING key
+// equal (case-insensitively) to a preset name must be rejected. The
+// construction exception must carry the C core's diagnostic.
+static void test_preset_name_guards()
+{
+    // Guard A rejections
+    for (const char *bad : { "HEX", "Hex", "DEC", "Base62", "CROCKFORD",
+                             "Base64Url" }) {
+        bool threw = false;
+        std::string what;
+        try {
+            dealcode::Options o;
+            o.alphabet = bad;
+            dealcode::Codec("guard-key", o);
+        } catch (const dealcode::ConfigError &e) {
+            threw = true;
+            what = e.what();
+        }
+        CHECK(threw, "guard A: alphabet \"%s\" must throw ConfigError", bad);
+        CHECK(threw && what.find("matches the preset name") !=
+                           std::string::npos,
+              "guard A: diagnostic for \"%s\", got \"%s\"", bad,
+              what.c_str());
+    }
+    // exact wording for the canonical example
+    try {
+        dealcode::Options o;
+        o.alphabet = "HEX";
+        dealcode::Codec("guard-key", o);
+        CHECK(false, "guard A: \"HEX\" must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "Codec(): custom alphabet \"HEX\" matches the preset name "
+                  "\"hex\" — pass \"hex\" for the preset, or a genuinely "
+                  "custom alphabet",
+              "guard A: exact message, got \"%s\"", e.what());
+    }
+    // exact preset names still resolve as presets
+    {
+        dealcode::Options o;
+        o.alphabet = "hex";
+        dealcode::Codec codec("guard-key", o);
+        CHECK(codec.alphabet() == "0123456789abcdef",
+              "guard A: exact \"hex\" resolves as preset");
+    }
+    // genuinely custom near-misses still work
+    for (const char *ok : { "HEXA", "xeh", "dce" }) {
+        dealcode::Options o;
+        o.alphabet = ok;
+        dealcode::Codec codec("guard-key", o);
+        CHECK(codec.alphabet() == ok,
+              "guard A: custom \"%s\" used verbatim", ok);
+    }
+
+    // Guard B rejections (string keys only)
+    for (const char *bad : { "dec", "hex", "base32", "crockford", "base36",
+                             "base58", "base62", "base64url", "HEX",
+                             "Crockford" }) {
+        CHECK(throws<dealcode::ConfigError>([&] {
+                  dealcode::Codec(std::string_view(bad));
+              }),
+              "guard B: string key \"%s\" must throw ConfigError", bad);
+    }
+    try {
+        dealcode::Codec codec(std::string_view("crockford"));
+        CHECK(false, "guard B: \"crockford\" must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "Codec(): string key \"crockford\" is a preset alphabet "
+                  "name — did you swap the key and alphabet fields?",
+              "guard B: exact message, got \"%s\"", e.what());
+    }
+    // near-miss string keys are fine
+    for (const char *ok : { "crockford1", "hex ", "base-62" }) {
+        dealcode::Codec codec{std::string_view(ok)};
+        CHECK(codec.decode(codec.encode(5)) == 5,
+              "guard B: string key \"%s\" accepted", ok);
+    }
+    // byte keys spelling a preset name are unaffected
+    {
+        const char *name = "crockford";
+        dealcode::Codec codec(reinterpret_cast<const std::uint8_t *>(name),
+                              9);
+        CHECK(codec.decode(codec.encode(5)) == 5,
+              "guard B: byte key \"crockford\" accepted");
+    }
+}
+
+// Construction failures must surface the C core's field-level diagnostics.
+static void test_error_details()
+{
+    try {
+        dealcode::Options o;
+        o.alphabet = "abca";
+        dealcode::Codec("k", o);
+        CHECK(false, "detail: duplicate alphabet char must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "Codec(): alphabet: duplicate character 'a'",
+              "detail: duplicate char, got \"%s\"", e.what());
+    }
+    try {
+        dealcode::Options o;
+        o.min_length = 1;
+        dealcode::Codec("k", o);
+        CHECK(false, "detail: min_length 1 must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) == "Codec(): min_length 1 < 2",
+              "detail: min_length, got \"%s\"", e.what());
+    }
+    try {
+        dealcode::Options o;
+        o.domain = std::string(256, 'a');
+        dealcode::Codec("k", o);
+        CHECK(false, "detail: oversized domain must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "Codec(): domain exceeds 255 UTF-8 bytes (got 256)",
+              "detail: domain, got \"%s\"", e.what());
+    }
+    try {
+        dealcode::Codec codec(std::string_view(""));
+        CHECK(false, "detail: empty key must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) == "Codec(): key: empty",
+              "detail: empty key, got \"%s\"", e.what());
     }
 }
 
@@ -470,7 +641,10 @@ int main()
 {
     test_nist_ff1();
     test_v1_vectors();
+    test_v1_invalid_configs();
     test_exceptions();
+    test_preset_name_guards();
+    test_error_details();
     test_key_rules();
     test_move_semantics();
     test_accessors_and_defaults();

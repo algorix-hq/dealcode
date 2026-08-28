@@ -1,12 +1,18 @@
 # dealcode (Python)
 
 Collision-free, random-looking codes from a counter. Python implementation of
-the [dealcode spec](../SPEC.md).
+the [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md).
 
 ## Install
 
 ```sh
 pip install dealcode
+```
+
+Note: v1.0.0 is not yet published to PyPI. Until it is, install from source:
+
+```sh
+pip install "dealcode @ git+https://github.com/algorix-hq/dealcode#subdirectory=python"
 ```
 
 Requires Python ≥ 3.9. The only dependency is [`cryptography`](https://cryptography.io) (PyCA), used for AES.
@@ -22,6 +28,9 @@ codec.encode(0)        # '767a5b'   (6 hex chars)
 codec.encode(1)        # '421163'   never collides with any other counter
 codec.decode("421163") # 1
 ```
+
+(The outputs shown are the real ones for this exact key and default config —
+with your own key every counter maps to a different, but equally stable, code.)
 
 The key can be raw bytes (16/24/32 bytes are used as-is as an AES key) or any
 string/bytes, which are deterministically expanded to an AES-256 key. Generate
@@ -55,7 +64,8 @@ decode as parsing, not proof of existence: look the counter up before acting
 on it, and note that a one-character typo in a valid code can resolve to a
 *different* valid counter — add rate limiting (and, for human-typed flows, an
 existence check or your own check digit). `encode` raises `RangeError`
-outside `[0, codec.capacity)`. All errors subclass `DealcodeError`
+outside `[0, codec.capacity)`, and construction mistakes (bad key, alphabet,
+lengths, domain) raise `ConfigError`. All errors subclass `DealcodeError`
 (a `ValueError`).
 
 ## Using it with your database
@@ -74,6 +84,12 @@ CREATE TABLE orders (
 ```
 
 ```python
+import os
+
+from sqlalchemy import text
+
+from dealcode import Dealcode, InvalidCodeError
+
 codec = Dealcode(key=os.environ["DEALCODE_KEY"], domain="orders")
 
 def create_order(conn) -> str:
@@ -116,9 +132,10 @@ python -m pytest python/tests
 ```
 
 The suite covers the official NIST FF1 sample vectors, every shared
-cross-language vector in [`../testvectors/`](../testvectors), and
-behavioural/edge cases.
+cross-language vector in
+[`testvectors/`](https://github.com/algorix-hq/dealcode/tree/main/testvectors),
+and behavioural/edge cases.
 
 ## License
 
-MIT — see [LICENSE](../LICENSE).
+MIT — see [LICENSE](https://github.com/algorix-hq/dealcode/blob/main/LICENSE).

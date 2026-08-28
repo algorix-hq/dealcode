@@ -5,7 +5,7 @@ from __future__ import annotations
 import hashlib
 from typing import Union
 
-from ._alphabets import resolve
+from ._alphabets import PRESETS, _ascii_lower, resolve
 from ._ff1 import FF1
 
 __all__ = ["Dealcode", "DealcodeError", "ConfigError", "RangeError", "InvalidCodeError"]
@@ -45,6 +45,11 @@ def _encode_clean_utf8(value: str, what: str) -> bytes:
 def _resolve_key(key: Union[bytes, bytearray, str]) -> bytes:
     """Key material handling (SPEC.md §2.1)."""
     if isinstance(key, str):
+        if _ascii_lower(key) in PRESETS:
+            raise ConfigError(
+                f'string key "{key}" is a preset alphabet name '
+                f"— did you swap the key and alphabet arguments?"
+            )
         material = _encode_clean_utf8(key, "string key material")
         if not material:
             raise ConfigError("key must not be empty")
@@ -194,12 +199,15 @@ class Dealcode:
         """Map a code back to its counter. Raises InvalidCodeError if not issuable."""
         if not isinstance(code, str):
             raise InvalidCodeError(f"code must be a string, got {type(code).__name__}")
-        normalized = self._alphabet.normalize(code)
-        d = len(normalized)
+        # Length gate before normalization: normalization is length-preserving,
+        # so this is behaviour-identical, and it keeps rejection of oversized
+        # garbage O(1) instead of normalizing megabytes first (SPEC §7).
+        d = len(code)
         if d < self._min_length or d > self._max_length:
             raise InvalidCodeError(
                 f"code length {d} outside [{self._min_length}, {self._max_length}]"
             )
+        normalized = self._alphabet.normalize(code)
         index = self._index
         try:
             numerals = [index[c] for c in normalized]

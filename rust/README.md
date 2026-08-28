@@ -1,13 +1,17 @@
 # dealcode (Rust)
 
 Collision-free, random-looking codes from a counter. Rust implementation of
-the [dealcode spec](../SPEC.md).
+the [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md).
 
 ## Install
 
 ```sh
 cargo add dealcode
 ```
+
+Not yet published to crates.io — until then, use it as a git dependency:
+`dealcode = { git = "https://github.com/algorix-hq/dealcode" }` (Cargo finds
+the crate inside the repository by its package name; no path hint needed).
 
 Requires Rust ≥ 1.75. The only runtime dependencies are the audited
 [RustCrypto](https://github.com/RustCrypto) crates
@@ -56,7 +60,7 @@ let fixed = Dealcode::builder(key).min_length(16).max_length(16).build()?;
 // constant-length hex
 ```
 
-`decode` returns `Err(Error::InvalidCode)` for **malformed** input — wrong
+`decode` returns `Err(Error::InvalidCode(_))` for **malformed** input — wrong
 length, characters outside the alphabet, or a value outside the issuable
 range. A *well-formed* code always decodes to some counter, whether or not
 that counter was ever issued (inherent to a permutation — see SPEC §7).
@@ -64,7 +68,7 @@ Treat decode as parsing, not proof of existence: look the counter up before
 acting on it, and note that a one-character typo in a valid code can resolve
 to a *different* valid counter — add rate limiting (and, for human-typed
 flows, an existence check or your own check digit).
-`encode` returns `Err(Error::Range)` outside `[0, codec.capacity())`.
+`encode` returns `Err(Error::Range { .. })` outside `[0, codec.capacity())`.
 Invalid configuration is rejected at build time with `Err(Error::Config)`.
 All three are variants of `dealcode::Error`, which implements
 `std::error::Error`.
@@ -122,9 +126,10 @@ locks.
 
 This crate implements format version 1 of the spec exactly and passes the
 official NIST FF1-AES sample vectors plus the shared
-[`testvectors/`](../testvectors) suite; codes are byte-for-byte identical to
-those produced by every other conforming implementation (e.g. the
-[Python package](../python)).
+[`testvectors/`](https://github.com/algorix-hq/dealcode/tree/main/testvectors)
+suite; codes are byte-for-byte identical to those produced by every other
+conforming implementation (e.g. the
+[Python package](https://github.com/algorix-hq/dealcode/tree/main/python)).
 
 ## Running the tests
 
@@ -136,9 +141,10 @@ cargo clippy --all-targets -- -D warnings
 ```
 
 The suite covers the official NIST FF1 sample vectors, every shared
-cross-language vector in [`../testvectors/`](../testvectors), behavioural
-cases, and doctests.
+cross-language vector in
+[`testvectors/`](https://github.com/algorix-hq/dealcode/tree/main/testvectors),
+behavioural cases, and doctests.
 
 ## License
 
-MIT — see [LICENSE](../LICENSE).
+MIT — see [LICENSE](https://github.com/algorix-hq/dealcode/blob/main/LICENSE).

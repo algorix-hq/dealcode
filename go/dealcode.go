@@ -101,6 +101,13 @@ func resolveKey(cfg Config) ([]byte, error) {
 		if strings.IndexByte(cfg.KeyString, 0) >= 0 {
 			return nil, fmt.Errorf("%w: KeyString must not contain U+0000", ErrConfig)
 		}
+		// SPEC §2.1: a string key that ASCII-case-insensitively equals a
+		// preset alphabet name is almost certainly a swapped argument; no
+		// real key material collides with this tiny set. Bytes keys are
+		// unaffected.
+		if _, ok := presets[asciiLower(cfg.KeyString)]; ok {
+			return nil, fmt.Errorf("%w: string key %q is a preset alphabet name — did you swap the key and alphabet arguments?", ErrConfig, cfg.KeyString)
+		}
 		sum := sha256.Sum256(append(append([]byte{}, kdfPrefix...), cfg.KeyString...))
 		return sum[:], nil
 	case !hasBytes || len(cfg.Key) == 0:
@@ -307,11 +314,20 @@ func (c *Codec) Encode(n int64) (string, error) {
 // Decode success only proves the code is consistent with the key; the
 // application still decides whether counter n actually exists.
 func (c *Codec) Decode(code string) (int64, error) {
+	// Length gate before normalization: normalization is length-preserving,
+	// so this is behaviour-identical, and it keeps rejection of oversized
+	// garbage from allocating a normalized copy first (SPEC §7). The gate
+	// counts characters (runes), not bytes, so the error for multi-byte
+	// garbage reports the length the caller sees. Everything after the gate
+	// stays byte-based: any input whose byte length differs from its rune
+	// count contains a byte >= 0x80, which the charset check below rejects
+	// before d is used to index stages (valid codes are pure ASCII, so their
+	// rune and byte counts agree).
+	if n := utf8.RuneCountInString(code); n < c.minLength || n > c.maxLength {
+		return 0, fmt.Errorf("%w: code length %d outside [%d, %d]", ErrInvalidCode, n, c.minLength, c.maxLength)
+	}
 	normalized := c.alpha.normalize(code)
 	d := len(normalized)
-	if d < c.minLength || d > c.maxLength {
-		return 0, fmt.Errorf("%w: code length %d outside [%d, %d]", ErrInvalidCode, d, c.minLength, c.maxLength)
-	}
 	numerals := make([]int, d)
 	for i, ch := range normalized {
 		idx := c.index[ch]

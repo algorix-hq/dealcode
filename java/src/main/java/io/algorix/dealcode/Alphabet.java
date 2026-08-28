@@ -5,6 +5,10 @@ package io.algorix.dealcode;
  */
 final class Alphabet {
 
+    /** The eight preset names (SPEC §3.1), all lowercase. */
+    static final java.util.Set<String> PRESET_NAMES = java.util.Set.of(
+            "dec", "hex", "base32", "crockford", "base36", "base58", "base62", "base64url");
+
     /** Decode-input normalization kinds. All are ASCII-only (SPEC §3.1). */
     enum Norm {
         /** No normalization; input must match the alphabet exactly. */
@@ -63,6 +67,17 @@ final class Alphabet {
     }
 
     private static Alphabet custom(String alphabet) {
+        // Not exactly a preset name (the switch above handles those), but its
+        // ASCII-lowercase is one: almost certainly a miscased preset, not a
+        // genuinely custom alphabet — reject rather than silently configure an
+        // unrelated permutation.
+        String lower = asciiLower(alphabet);
+        if (PRESET_NAMES.contains(lower)) {
+            throw new ConfigException(
+                    "custom alphabet \"" + alphabet + "\" matches the preset name \""
+                            + lower + "\" — pass \"" + lower
+                            + "\" for the preset, or a genuinely custom alphabet");
+        }
         int len = alphabet.length();
         if (len < 2 || len > 94) {
             throw new ConfigException(
@@ -109,7 +124,8 @@ final class Alphabet {
         }
     }
 
-    private static String asciiLower(String s) {
+    /** ASCII-only lowercase: maps {@code A-Z} to {@code a-z}, nothing else. */
+    static String asciiLower(String s) {
         char[] out = null;
         for (int i = 0; i < s.length(); i++) {
             char c = s.charAt(i);

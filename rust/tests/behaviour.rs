@@ -229,6 +229,77 @@ fn config_error_messages_are_helpful() {
     assert!(display.contains("key must not be empty"), "{display}");
 }
 
+/// A custom alphabet that ASCII-case-insensitively equals a preset name is a
+/// misspelled preset, not a radix-3 codec over the letters of the name
+/// (SPEC §3.2).
+#[test]
+fn custom_alphabet_matching_preset_name_is_rejected() {
+    for alphabet in [
+        "DEC", "HEX", "Hex", "hEx", "BASE32", "Crockford", "CROCKFORD",
+        "Base36", "BASE58", "Base62", "BASE64URL", "Base64Url",
+    ] {
+        config_err(Dealcode::builder("k").alphabet(alphabet).build());
+    }
+
+    let msg = config_err(Dealcode::builder("k").alphabet("HEX").build());
+    assert_eq!(
+        msg,
+        "custom alphabet \"HEX\" matches the preset name \"hex\" — \
+         pass \"hex\" for the preset, or a genuinely custom alphabet"
+    );
+
+    // Exact preset names keep resolving as presets.
+    for (name, chars) in [
+        ("dec", alphabets::DEC),
+        ("hex", alphabets::HEX),
+        ("base32", alphabets::BASE32),
+        ("crockford", alphabets::CROCKFORD),
+        ("base36", alphabets::BASE36),
+        ("base58", alphabets::BASE58),
+        ("base62", alphabets::BASE62),
+        ("base64url", alphabets::BASE64URL),
+    ] {
+        let codec = Dealcode::builder("k").alphabet(name).build().unwrap();
+        assert_eq!(codec.alphabet(), chars, "{name}");
+    }
+
+    // Genuinely custom alphabets are untouched, including ones containing
+    // uppercase letters that do not spell a preset name.
+    for alphabet in ["BCDFGHJKLMNPQRSTVWXZ", "0123456789ab", "HEX!"] {
+        Dealcode::builder("k").alphabet(alphabet).build().unwrap();
+    }
+}
+
+/// A string key that ASCII-case-insensitively equals a preset alphabet name
+/// is almost certainly a swapped argument (SPEC §2.1). Bytes keys are
+/// unaffected.
+#[test]
+fn string_key_matching_preset_name_is_rejected() {
+    for key in [
+        "dec", "hex", "HEX", "base32", "crockford", "Crockford",
+        "base36", "base58", "base62", "base64url", "BASE64URL",
+    ] {
+        config_err(Dealcode::new(key));
+        config_err(Dealcode::new(key.to_owned())); // String entry point too
+    }
+
+    let msg = config_err(Dealcode::new("crockford"));
+    assert_eq!(
+        msg,
+        "string key \"crockford\" is a preset alphabet name — \
+         did you swap the key and alphabet arguments?"
+    );
+
+    // Bytes keys with the same content are fine.
+    Dealcode::new(&b"crockford"[..]).unwrap();
+    Dealcode::new(b"crockford".to_vec()).unwrap();
+
+    // Ordinary string keys still work.
+    for key in ["hexadecimal", "hex ", "my-secret", "base65"] {
+        Dealcode::new(key).unwrap();
+    }
+}
+
 // ---------------------------------------------------------------------------
 // Key material
 // ---------------------------------------------------------------------------

@@ -97,6 +97,12 @@ every language produces the same AES key from the same input:
   into UTF-8, so accepting them would silently produce different permutations
   per language; and NUL-terminated C APIs cannot represent them at all.)
 - Empty bytes / empty string → `ConfigError`.
+- **String equal to a preset alphabet name** (ASCII case-insensitively:
+  `dec`, `hex`, `base32`, `crockford`, `base36`, `base58`, `base62`,
+  `base64url`) → `ConfigError`. Such a "key" is almost certainly a swapped
+  argument (`Dealcode("crockford")` where `Dealcode(key, "crockford")` was
+  meant), and no real key material collides with this tiny set. Byte keys are
+  unaffected.
 
 Derivation: `AES-256 key = SHA-256( "dealcode/v1/kdf" ‖ material )`, where
 `"dealcode/v1/kdf"` is the 15-byte ASCII prefix.
@@ -128,6 +134,12 @@ big-endian (most significant numeral first).
 left untouched. Normalization applies to `decode` input only; `encode` always
 emits the canonical characters listed above.
 
+Informative: `crockford` normalization intentionally covers **only** case and
+the `O/I/L` confusables. Unlike Crockford's Base32 essay, separators are NOT
+ignored: a hyphenated or whitespace-grouped rendering (`H4P-FG6`) must have
+its separators stripped by the application before `decode`. No preset trims
+or Unicode-normalizes input.
+
 ### 3.2 Custom alphabets
 
 A custom alphabet is any string of **2 to 94 distinct** printable ASCII
@@ -136,6 +148,13 @@ Custom alphabets have **no normalization**: decode input must match exactly.
 
 Implementations SHOULD accept the `alphabet` parameter as either a preset name
 or a custom alphabet string; preset names win on conflict.
+
+A custom alphabet that is not exactly a preset name but ASCII-case-
+insensitively equals one (`"HEX"`, `"Base62"`, …) MUST be rejected with
+`ConfigError`. Accepting it would silently build a codec over the *letters of
+the name* (`{H,E,X}` as radix 3) — a plausible-looking misconfiguration that
+is frozen into production the moment the first code ships. A genuinely
+intended alphabet of those exact characters can be expressed by reordering it.
 
 ## 4. Length staging
 
@@ -172,11 +191,19 @@ Input: counter `n`. Reject `n < 0` and `n ≥ min(r^M, 2^63)`
 
 ## 6. FF1
 
-FF1 is implemented exactly as specified in NIST SP 800-38G ("Recommendation
-for Block Cipher Modes of Operation: Methods for Format-Preserving
-Encryption"), Algorithms 7 (`FF1.Encrypt`) and 8 (`FF1.Decrypt`), with AES as
-the underlying block cipher. Ten rounds, alternating Feistel with the
-CBC-MAC-based round function `PRF`.
+FF1 is implemented exactly as specified in
+[NIST SP 800-38G](https://csrc.nist.gov/pubs/sp/800/38/g/final)
+("Recommendation for Block Cipher Modes of Operation: Methods for
+Format-Preserving Encryption", March 2016), Algorithms 7 (`FF1.Encrypt`) and
+8 (`FF1.Decrypt`), with AES as the underlying block cipher. Ten rounds,
+alternating Feistel with the CBC-MAC-based round function `PRF`. (The Rev. 1
+draft changes recommendations, not these algorithms; conformance targets the
+algorithms as published in 2016.)
+
+Notation caution: this section reuses NIST's own symbols, which collide with
+§4–§5 — here `v` is the length of the **right half** of the numeral string
+(not the stage value) and `m` is the per-round half length (not
+`min_length`).
 
 Implementation notes (normative for interoperability):
 
@@ -206,9 +233,13 @@ cryptographic library — do not hand-roll AES.
 
 Input: code string `s`.
 
-1. Apply the alphabet's normalization (§3.1) to `s`.
-2. Reject if the length is `< min_length` or `> max_length`, or if any
-   character is not in the alphabet (`InvalidCodeError` equivalent).
+1. Reject if the length is `< min_length` or `> max_length`
+   (`InvalidCodeError` equivalent). Checking length first keeps rejection of
+   oversized garbage cheap (no normalized copy is ever allocated); it is
+   observationally identical to normalizing first, because normalization
+   (§3.1) is length-preserving.
+2. Apply the alphabet's normalization (§3.1) to `s`. Reject if any
+   character is not in the alphabet (`InvalidCodeError`).
 3. `d = len(s)`; map characters to numerals `Y`.
 4. `X = FF1.Decrypt(key, T, Y)` with the same tweak `T` as §5.
 5. `v = NUM(X, r)`.
@@ -245,6 +276,14 @@ Implementations MUST NOT silently truncate, wrap, or "fix" invalid input.
   Python reference implementation (`scripts/generate_test_vectors.py`).
   Counters are encoded as **JSON strings** (they exceed 2^53).
 
+For each config in `v1.json` a conforming implementation must: produce
+`code` for every `vectors[].n` and decode it back; reject every
+`invalid_codes[]` entry (`InvalidCodeError`); accept every `normalize[]`
+input as its `n`; and reject every `range_counters[]` value (`RangeError`) —
+a value unrepresentable in the language's counter type (e.g. `-1` or `2^64`
+for `uint64`) counts as rejected by the type system. Every entry of the
+top-level `invalid_configs[]` must fail construction (`ConfigError`).
+
 Passing both files is the definition of conformance.
 
 ## 10. Security model (informative)
@@ -259,6 +298,7 @@ Passing both files is the definition of conformance.
 - FF1 on small domains has known distinguishing attacks far below AES
   security margins; for the obfuscation purpose of dealcode this is
   acceptable, but do not encrypt *confidential data* with this library.
-- If the key leaks, the full issue order of all past codes is revealed.
+- If the key leaks, the full issue order of all past codes is revealed, and
+  every *future* valid code becomes enumerable (encode every counter).
   Treat the key like any other production secret (KMS/Vault, per-environment
   keys).

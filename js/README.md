@@ -1,12 +1,20 @@
 # dealcode (TypeScript / JavaScript)
 
 Collision-free, random-looking codes from a counter. TypeScript implementation
-of the [dealcode spec](../SPEC.md).
+of the [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md).
 
 ## Install
 
 ```sh
 npm install dealcode
+```
+
+Note: v1.0.0 is not yet published to npm. Until it is, install from source:
+
+```sh
+git clone https://github.com/algorix-hq/dealcode
+cd dealcode/js && npm install && npm run build
+npm install /path/to/dealcode/js    # from your project
 ```
 
 Requires Node.js ≥ 18. Zero runtime dependencies — AES and SHA-256 come from
@@ -115,6 +123,11 @@ async function findOrder(db, code) {
 }
 ```
 
+`err.name === "InvalidCodeError"` is the cross-realm-safe way to identify the
+error (`instanceof` now also works across the ESM and CJS builds — dealcode
+errors carry a brand its classes recognize — but `err.name` never depends on
+which copy of the library threw).
+
 Sequences never hand out the same number twice (even across concurrent
 transactions and rollbacks), so codes never collide. Gaps in the sequence are
 invisible — codes look random anyway.
@@ -155,9 +168,10 @@ npm run build && npm test
 ```
 
 The suite (node:test) covers the official NIST FF1 sample vectors, every
-shared cross-language vector in [`../testvectors/`](../testvectors), and
-behavioural/edge cases against the compiled output.
+shared cross-language vector in
+[`testvectors/`](https://github.com/algorix-hq/dealcode/tree/main/testvectors),
+and behavioural/edge cases against the compiled output.
 
 ## License
 
-MIT — see [LICENSE](../LICENSE).
+MIT — see [LICENSE](https://github.com/algorix-hq/dealcode/blob/main/js/LICENSE).

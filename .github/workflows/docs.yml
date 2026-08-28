@@ -1,0 +1,59 @@
+name: docs
+
+on:
+  # Manual only for now (project policy: no push triggers to keep CI costs
+  # down — run `mkdocs build --strict` locally first, push, then trigger
+  # from the Actions tab or `gh workflow run docs.yml`).
+  workflow_dispatch:
+  # When push triggers are enabled later, uncomment:
+  # push:
+  #   branches: [main]
+  #   paths:
+  #     - "docs/**"
+  #     - "mkdocs.yml"
+  #     - "SPEC.md"
+  #     - "CONTRIBUTING.md"
+  #     - ".github/workflows/docs.yml"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: docs/requirements.txt
+
+      - name: Install pinned doc dependencies
+        run: pip install -r docs/requirements.txt
+
+      - name: Build site (strict — any warning fails)
+        run: mkdocs build --strict
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

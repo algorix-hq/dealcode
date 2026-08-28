@@ -6,12 +6,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import { Dealcode, InvalidCodeError } from "../dist/esm/index.js";
+import {
+  ConfigError,
+  CounterRangeError,
+  Dealcode,
+  InvalidCodeError,
+} from "../dist/esm/index.js";
 
 const vectorsPath = fileURLToPath(
   new URL("../../testvectors/v1.json", import.meta.url),
 );
-const { spec, configs } = JSON.parse(readFileSync(vectorsPath, "utf8"));
+const { spec, configs, invalid_configs } = JSON.parse(
+  readFileSync(vectorsPath, "utf8"),
+);
 
 assert.equal(spec, "dealcode/v1");
 
@@ -58,5 +65,34 @@ for (const config of configs) {
         `normalized decode(${JSON.stringify(input)})`,
       );
     }
+
+    for (const counter of config.range_counters ?? []) {
+      assert.throws(
+        () => codec.encode(BigInt(counter)),
+        CounterRangeError,
+        `encode(${counter}) must throw CounterRangeError`,
+      );
+    }
+  });
+}
+
+for (const config of invalid_configs) {
+  test(`v1.json invalid config "${config.name}"`, () => {
+    const key =
+      config.key_hex !== undefined
+        ? Buffer.from(config.key_hex, "hex")
+        : config.key_string;
+    assert.throws(
+      () =>
+        new Dealcode({
+          key,
+          alphabet: config.custom_alphabet ?? config.alphabet,
+          minLength: config.min_length,
+          maxLength: config.max_length,
+          domain: config.domain,
+        }),
+      ConfigError,
+      `config "${config.name}" must be rejected with ConfigError`,
+    );
   });
 }

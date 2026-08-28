@@ -14,7 +14,10 @@ from that.
 - An implementation is conformant iff it passes both files in
   [`testvectors/`](testvectors/):
   - `ff1_nist.json` — the official NIST FF1 samples (validates the FF1 core),
-  - `v1.json` — dealcode vectors (validates the full codec).
+  - `v1.json` — dealcode vectors (validates the full codec). This covers
+    every section: `vectors`, `invalid_codes`, `normalize`, `range_counters`,
+    and the top-level `invalid_configs` (see SPEC.md §9 for the exact
+    obligations of each).
 
 ## Working on an implementation
 
@@ -43,7 +46,8 @@ its tests. Shared expectations:
 
 Port from `SPEC.md` alone (peeking at `python/` is fine), make both vector
 files pass in your test suite, add a README with a quickstart and a database
-recipe, and wire a job into `.github/workflows/ci.yml`. That's the whole bar.
+recipe, and wire a job into `.github/workflows/ci.yml` (including the new
+name in the `only` input's `options` list). That's the whole bar.
 
 ## CI
 

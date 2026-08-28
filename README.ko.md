@@ -1,6 +1,6 @@
 # dealcode
 
-[English](README.md) | **한국어**
+[English](README.md) | **한국어** · **문서:** <https://algorix-hq.github.io/dealcode/ko/>
 
 카운터에서 **절대 겹치지 않는, 랜덤처럼 보이는 코드**를 만드는 라이브러리 —
 잘 섞인 카드 덱에서 딜러가 한 장씩 나눠주는 것과 같습니다. 모든 카드는
@@ -11,7 +11,7 @@
 카운터:   0        1        2        3        ...      16,777,216
            │        │        │        │                  │
            ▼        ▼        ▼        ▼                  ▼
-코드:    c4334d   38fa1e   f3afe1   40a466   ...       f60eebef   ← 6자리가 소진된
+코드:    9ebb54   19867f   ae3192   4c2a01   ...       58175f7    ← 6자리가 소진된
                                                                     순간에만 7자리로 성장
 ```
 
@@ -42,8 +42,12 @@
 | Go | [`go/`](go/) | `go get github.com/algorix-hq/dealcode/go` | 표준 라이브러리 |
 | Java | [`java/`](java/) | Maven `io.algorix:dealcode` | JCE (내장) |
 | Rust | [`rust/`](rust/) | `cargo add dealcode` | RustCrypto `aes`, `sha2` |
-| C | [`c/`](c/) | 벤더링 / 정적 라이브러리 | OpenSSL libcrypto |
-| C++ | [`cpp/`](cpp/) | C 코어 래핑 | OpenSSL libcrypto |
+| C | [`c/`](c/) | `make install` / 벤더링 (GCC/Clang: `__int128` 필요) | OpenSSL libcrypto |
+| C++ | [`cpp/`](cpp/) | CMake (C 코어 래핑) | OpenSSL libcrypto |
+
+> 레지스트리 패키지(PyPI/npm/Maven Central/crates.io)는 **아직 미출판**
+> 상태입니다 — v1.0.0 릴리스 준비 중. 그때까지는 각 디렉터리 README의
+> 소스 설치 방법을 사용하세요. Go 모듈은 이 저장소에서 바로 받아집니다.
 
 그 외 의존성은 의도적으로 0입니다. FF1과 dealcode 레이어는 각 언어에서
 NIST 명세로부터 직접 구현했고, NIST 공식 샘플 벡터와 이 레포의 공유
@@ -64,9 +68,9 @@ codec.decode("19867f")   # 1
 제품에 맞는 모양을 고르면 됩니다:
 
 ```python
-Dealcode(key, "crockford", domain="coupons")       # 'ZV6NQ0' — 사람 친화적, 혼동 문자 자동 처리
-Dealcode(key, "dec",       domain="orders")        # '839207' — 숫자만
-Dealcode(key, "base62",    min_length=8)           # 'tHx93bQk'
+Dealcode(key, "crockford", domain="coupons")       # 예: 'ZV6NQ0' — 사람 친화적, 혼동 문자 자동 처리
+Dealcode(key, "dec",       domain="orders")        # 예: '839207' — 숫자만
+Dealcode(key, "base62",    min_length=8)           # 예: 'tHx93bQk'
 Dealcode(key, "hex", min_length=16, max_length=16) # 고정 길이 토큰
 Dealcode(key, "!@#$%^&*")                          # 커스텀 알파벳도 그대로 동작
 ```
@@ -105,6 +109,10 @@ db.execute("INSERT INTO orders (id, code, ...) VALUES (%s, %s, ...)", (n, code))
 말고 조사하세요. MySQL 등은 `AUTO_INCREMENT`/identity 컬럼으로 같은 패턴을
 쓰면 됩니다(언어별 README 참고).
 
+한 가지 실무 팁: `decode`는 절대 공백을 잘라내지 않습니다 — 복사·붙여넣기로
+끝에 공백/개행이 섞인 코드는 invalid로 거부됩니다. 디코드 전에 사용자
+입력을 `strip()`/`trim()` 하세요.
+
 ## 언제 쓰고, 언제 쓰지 말아야 하나
 
 주문번호, 쿠폰/초대 코드, 티켓 번호, 상담 PIN, 숏링크처럼 **유일하고, 짧고,
@@ -129,7 +137,7 @@ hex, `< 16^7` → 7자리, ...), `n`을 `d`자리 숫자로 쓴 뒤 그 숫자�
 암호화합니다. FF1은 *같은 자릿수의 다른 숫자*를 출력하는 형식 보존
 암호이므로, 같은 길이끼리는 순열이라 충돌 불가, 다른 길이끼리는 길이가
 달라서 충돌 불가입니다. `decode`는 역방향으로 돌리고 엄격하게 검증합니다.
-상세: [SPEC.md](SPEC.md) · 설계 근거: [docs/design.md](docs/design.md).
+상세: [SPEC.md](SPEC.md) · 설계 근거: [docs/design.ko.md](docs/design.ko.md).
 
 ## 레포 구성
 
@@ -143,6 +151,9 @@ scripts/           테스트 벡터 생성기 (Python 레퍼런스 기준)
 
 기여와 신규 언어 포팅을 환영합니다 — 두 벡터 파일을 통과하면 적합한
 구현입니다. 스펙 변경은 벡터 재생성과 포맷 버전 상향이 필요합니다.
+[CONTRIBUTING.md](CONTRIBUTING.md)를 참고하세요. 보안 취약점 의심 사항은
+[SECURITY.md](SECURITY.md)에 따라 비공개로 제보해 주시고,
+[행동 강령](CODE_OF_CONDUCT.md)을 지켜 주세요.
 
 ## 라이선스
 

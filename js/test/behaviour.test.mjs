@@ -101,6 +101,43 @@ test("config errors", () => {
   assert.ok(new Dealcode({ key: KEY, domain: "x".repeat(255) }));
 });
 
+test("preset-lookalike custom alphabets are rejected", () => {
+  // ASCII-lowercase of a custom alphabet matching a preset name is a footgun
+  assert.throws(
+    () => new Dealcode({ key: KEY, alphabet: "HEX" }),
+    (err) =>
+      err instanceof ConfigError &&
+      err.message ===
+        'custom alphabet "HEX" matches the preset name "hex" ' +
+          '— pass "hex" for the preset, or a genuinely custom alphabet',
+  );
+  assert.throws(() => new Dealcode({ key: KEY, alphabet: "Crockford" }), ConfigError);
+  assert.throws(() => new Dealcode({ key: KEY, alphabet: "Base64URL" }), ConfigError);
+  // exact preset names still resolve as presets
+  assert.equal(new Dealcode({ key: KEY, alphabet: "hex" }).alphabet, ALPHABETS.hex);
+  // genuinely custom alphabets are unaffected
+  assert.equal(
+    new Dealcode({ key: KEY, alphabet: "BCDFGHJKLMNPQRSTVWXZ" }).radix,
+    20,
+  );
+});
+
+test("preset-name string keys are rejected", () => {
+  // a string key that is a preset alphabet name means swapped arguments
+  assert.throws(
+    () => new Dealcode({ key: "crockford" }),
+    (err) =>
+      err instanceof ConfigError &&
+      err.message ===
+        'string key "crockford" is a preset alphabet name ' +
+          "— did you swap the key and alphabet arguments?",
+  );
+  assert.throws(() => new Dealcode({ key: "HEX" }), ConfigError); // ASCII-lowercase matches too
+  // byte keys are unaffected
+  const codec = new Dealcode({ key: Buffer.from("crockford", "utf8") });
+  assert.equal(codec.decode(codec.encode(7)), 7n);
+});
+
 test("error names are set properly", () => {
   try {
     new Dealcode({ key: "" });

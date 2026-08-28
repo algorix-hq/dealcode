@@ -13,7 +13,17 @@
     "nist-sp-800-38g"
   ],
   "license": "MIT",
+  "homepage": "https://github.com/algorix-hq/dealcode#readme",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/algorix-hq/dealcode.git",
+    "directory": "js"
+  },
+  "bugs": {
+    "url": "https://github.com/algorix-hq/dealcode/issues"
+  },
   "type": "module",
+  "sideEffects": false,
   "engines": {
     "node": ">=18"
   },
@@ -43,6 +53,8 @@
     "build:esm": "tsc -p tsconfig.esm.json && node -e \"require('node:fs').writeFileSync('dist/esm/package.json', JSON.stringify({type:'module'}))\"",
     "build:cjs": "tsc -p tsconfig.cjs.json && node -e \"require('node:fs').writeFileSync('dist/cjs/package.json', JSON.stringify({type:'commonjs'}))\"",
     "clean": "node -e \"require('node:fs').rmSync('dist', {recursive:true, force:true})\"",
+    "pretest": "npm run build",
+    "prepublishOnly": "npm run clean && npm run build && npm test",
     "test": "node --test test/*.test.mjs test/*.test.cjs"
   },
   "devDependencies": {

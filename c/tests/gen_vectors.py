@@ -20,15 +20,25 @@ def c_str(s):
     if s is None:
         return "NULL"
     out = []
-    for ch in s:
+    pending_hex = False  # last emitted item was a \xHH escape
+    for b in s.encode("utf-8"):
+        ch = chr(b)
         if ch == "\\":
             out.append("\\\\")
+            pending_hex = False
         elif ch == '"':
             out.append('\\"')
-        elif 0x20 <= ord(ch) <= 0x7E:
+            pending_hex = False
+        elif 0x20 <= b <= 0x7E:
+            if pending_hex and ch in "0123456789abcdefABCDEF":
+                # C hex escapes are maximal-munch: "\xac" "00" must not
+                # merge into \xac00, so split the literal
+                out.append('" "')
             out.append(ch)
+            pending_hex = False
         else:
-            out.append("\\x%02x" % ord(ch))
+            out.append("\\x%02x" % b)
+            pending_hex = True
     return '"' + "".join(out) + '"'
 
 
@@ -97,7 +107,19 @@ def main():
     w("    size_t n_invalid_codes;")
     w("    const tv_norm_t *normalize;")
     w("    size_t n_normalize;")
+    w("    const uint64_t *range_counters;  /* encode must ERR_RANGE these */")
+    w("    size_t n_range_counters;")
     w("} tv_config_t;")
+    w("")
+    w("typedef struct {")
+    w("    const char *name;")
+    w("    const char *alphabet;        /* preset name, or the custom chars */")
+    w("    const char *key_hex;         /* bytes rule, or NULL */")
+    w("    const char *key_string;      /* string rule, or NULL */")
+    w("    int min_length;              /* 0 = default */")
+    w("    int max_length;              /* 0 = default */")
+    w("    const char *domain;          /* NULL = default */")
+    w("} tv_invalid_config_t;")
     w("")
 
     configs = v1["configs"]
@@ -119,6 +141,28 @@ def main():
                 assert 0 <= int(norm["n"]) < 2**63, cfg["name"]
                 w("    { %s, UINT64_C(%d) }," % (c_str(norm["input"]), int(norm["n"])))
             w("};")
+        # range_counters are decimal strings; values not representable in
+        # uint64_t ("-1", 2^64) cannot even be passed to dealcode_encode(),
+        # so the C type system covers them — skip them here.
+        range_repr = []
+        range_skipped = []
+        for s in cfg.get("range_counters", []):
+            v = int(s)
+            if 0 <= v < 2**64:
+                range_repr.append(v)
+            else:
+                range_skipped.append(s)
+        if range_repr:
+            if range_skipped:
+                w(
+                    "/* %s: range counters %s skipped: not representable in"
+                    " uint64_t (covered by the type system) */"
+                    % (cfg["name"], ", ".join(range_skipped))
+                )
+            w("static const uint64_t TV_V1_%d_RANGE[] = {" % i)
+            for v in range_repr:
+                w("    UINT64_C(%d)," % v)
+            w("};")
         w("")
 
     w("static const tv_config_t TV_V1[] = {")
@@ -136,6 +180,14 @@ def main():
             if cfg.get("normalize")
             else "NULL, 0"
         )
+        has_range = any(
+            0 <= int(s) < 2**64 for s in cfg.get("range_counters", [])
+        )
+        rng = (
+            "TV_V1_%d_RANGE, sizeof TV_V1_%d_RANGE / sizeof (uint64_t)" % (i, i)
+            if has_range
+            else "NULL, 0"
+        )
         w("    { %s, %s," % (c_str(cfg["name"]), c_str(alphabet)))
         w("      %s, %s," % (c_str(cfg.get("key_hex")), c_str(cfg.get("key_string"))))
         w(
@@ -147,13 +199,40 @@ def main():
             % (i, i)
         )
         w("      %s," % invalid)
-        w("      %s }," % norm)
+        w("      %s," % norm)
+        w("      %s }," % rng)
     w("};")
     w("#define TV_V1_COUNT (sizeof TV_V1 / sizeof TV_V1[0])")
     w("")
 
+    invalid_configs = v1.get("invalid_configs", [])
+    w("/* Every entry must make construction fail with a config error. */")
+    w("static const tv_invalid_config_t TV_V1_INVALID_CONFIGS[] = {")
+    for cfg in invalid_configs:
+        alphabet = cfg.get("custom_alphabet", cfg.get("alphabet"))
+        assert alphabet is not None, cfg["name"]
+        w("    { %s, %s," % (c_str(cfg["name"]), c_str(alphabet)))
+        w("      %s, %s," % (c_str(cfg.get("key_hex")), c_str(cfg.get("key_string"))))
+        w(
+            "      %d, %d, %s },"
+            % (
+                cfg.get("min_length", 0),
+                cfg.get("max_length", 0),
+                c_str(cfg.get("domain")),
+            )
+        )
+    w("};")
+    w(
+        "#define TV_V1_INVALID_CONFIG_COUNT \\"
+    )
+    w("    (sizeof TV_V1_INVALID_CONFIGS / sizeof TV_V1_INVALID_CONFIGS[0])")
+    w("")
+
     out_path.write_text("\n".join(lines) + "\n")
-    print("wrote %s (%d NIST vectors, %d v1 configs)" % (out_path, len(nist["vectors"]), len(configs)))
+    print(
+        "wrote %s (%d NIST vectors, %d v1 configs, %d invalid configs)"
+        % (out_path, len(nist["vectors"]), len(configs), len(invalid_configs))
+    )
 
 
 if __name__ == "__main__":

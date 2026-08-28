@@ -2,7 +2,11 @@
 
 import { createHash } from "node:crypto";
 
-import { resolveAlphabet, type ResolvedAlphabet } from "./alphabets.js";
+import {
+  matchesPresetName,
+  resolveAlphabet,
+  type ResolvedAlphabet,
+} from "./alphabets.js";
 import { ConfigError, CounterRangeError, InvalidCodeError } from "./errors.js";
 import { FF1 } from "./ff1.js";
 
@@ -75,6 +79,12 @@ function resolveKey(key: string | Uint8Array): Buffer {
   let material: Buffer;
   let direct: boolean;
   if (typeof key === "string") {
+    if (matchesPresetName(key)) {
+      throw new ConfigError(
+        `string key "${key}" is a preset alphabet name ` +
+          `— did you swap the key and alphabet arguments?`,
+      );
+    }
     assertCleanUnicode(key, "string key material");
     material = Buffer.from(key, "utf8");
     direct = false; // strings are always derived, never auto-decoded
@@ -265,13 +275,20 @@ export class Dealcode {
     if (typeof code !== "string") {
       throw new InvalidCodeError(`code must be a string, got ${typeof code}`);
     }
-    const normalized = this.#alpha.normalize(code);
-    const d = normalized.length;
-    if (d < this.minLength || d > this.maxLength) {
+    // Length gate before normalization: normalization is length-preserving,
+    // so this is behaviour-identical, and it keeps rejection of oversized
+    // garbage O(1) instead of normalizing megabytes first (SPEC §7). The
+    // gate counts code points when that is cheap so the message matches the
+    // other implementations; valid codes are ASCII, where the counts agree.
+    const gate =
+      code.length <= 4 * this.maxLength ? [...code].length : code.length;
+    if (gate < this.minLength || gate > this.maxLength) {
       throw new InvalidCodeError(
-        `code length ${d} outside [${this.minLength}, ${this.maxLength}]`,
+        `code length ${gate} outside [${this.minLength}, ${this.maxLength}]`,
       );
     }
+    const normalized = this.#alpha.normalize(code);
+    const d = normalized.length;
     const numerals = new Array<number>(d);
     for (let i = 0; i < d; i++) {
       const numeral = this.#charIndex.get(normalized[i]!);

@@ -13,6 +13,10 @@ the [dealcode spec](../SPEC.md).
 </dependency>
 ```
 
+> **Not yet on Maven Central.** Until the first release is published, clone the
+> repository and run `cd java && mvn install` to put the artifact in your local
+> repository.
+
 Requires Java 17+. **Zero runtime dependencies** — AES and SHA-256 come from
 the JDK's built-in JCE providers.
 
@@ -25,9 +29,9 @@ Dealcode codec = Dealcode.builder()
         .key("0a1b...64-hex-chars-from-your-secret-manager")
         .build();
 
-codec.encode(0);        // "767a5b"   (6 hex chars)
-codec.encode(1);        // "421163"   never collides with any other counter
-codec.decode("421163"); // 1
+codec.encode(0);        // e.g. "767a5b"   (6 hex chars)
+codec.encode(1);        // e.g. "421163"   never collides with any other counter
+codec.decode("421163"); // 1 (given the encoding above)
 ```
 
 The key can be raw bytes (16/24/32 bytes are used as-is as an AES key) or any

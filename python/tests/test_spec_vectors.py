@@ -2,7 +2,7 @@
 
 import pytest
 
-from dealcode import Dealcode, InvalidCodeError
+from dealcode import ConfigError, Dealcode, InvalidCodeError, RangeError
 
 
 def _codec(cfg) -> Dealcode:
@@ -39,3 +39,26 @@ def test_normalization(v1_vectors):
         codec = _codec(cfg)
         for case in cfg.get("normalize", []):
             assert codec.decode(case["input"]) == int(case["n"]), cfg["name"]
+
+
+def test_range_counters(v1_vectors):
+    for cfg in v1_vectors["configs"]:
+        codec = _codec(cfg)
+        for counter in cfg["range_counters"]:
+            with pytest.raises(RangeError):
+                codec.encode(int(counter))
+
+
+def test_invalid_configs(v1_vectors):
+    for cfg in v1_vectors["invalid_configs"]:
+        alphabet = cfg.get("custom_alphabet") or cfg["alphabet"]
+        key = cfg["key_string"] if "key_string" in cfg else bytes.fromhex(cfg["key_hex"])
+        kwargs = {}
+        if "min_length" in cfg:
+            kwargs["min_length"] = cfg["min_length"]
+        if "max_length" in cfg:
+            kwargs["max_length"] = cfg["max_length"]
+        if "domain" in cfg:
+            kwargs["domain"] = cfg["domain"]
+        with pytest.raises(ConfigError):
+            Dealcode(key=key, alphabet=alphabet, **kwargs)

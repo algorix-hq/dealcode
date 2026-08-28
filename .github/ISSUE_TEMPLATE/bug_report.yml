@@ -1,0 +1,36 @@
+name: Bug report
+description: An implementation misbehaves, or implementations disagree
+labels: ["bug"]
+body:
+  - type: dropdown
+    id: language
+    attributes:
+      label: Implementation
+      multiple: true
+      options: [python, js, go, java, rust, c, cpp, spec/vectors, other]
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Minimal reproduction
+      description: >-
+        Config (alphabet, min/max length, domain — never post a production
+        key; reproduce with a throwaway key), the counter or code, expected
+        vs actual. Cross-language disagreements are the highest-priority
+        bugs — if two implementations differ on the same input, say which.
+      render: text
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version / commit
+    validations:
+      required: true
+  - type: markdown
+    attributes:
+      value: >-
+        Suspected security issues (key leakage, memory safety): please use
+        [private vulnerability reporting](https://github.com/algorix-hq/dealcode/security/advisories/new)
+        instead of a public issue.

@@ -56,9 +56,17 @@ PRESETS: dict[str, Alphabet] = {
 
 def resolve(alphabet: str) -> Alphabet:
     """Resolve a preset name or custom alphabet string (SPEC.md §3.2)."""
+    if not isinstance(alphabet, str):
+        raise ValueError("custom alphabet must be a string of 2-94 characters")
     if alphabet in PRESETS:
         return PRESETS[alphabet]
-    if not isinstance(alphabet, str) or not (2 <= len(alphabet) <= 94):
+    lowered = _ascii_lower(alphabet)
+    if lowered in PRESETS:
+        raise ValueError(
+            f'custom alphabet "{alphabet}" matches the preset name "{lowered}" '
+            f'— pass "{lowered}" for the preset, or a genuinely custom alphabet'
+        )
+    if not (2 <= len(alphabet) <= 94):
         raise ValueError("custom alphabet must be a string of 2-94 characters")
     if len(set(alphabet)) != len(alphabet):
         raise ValueError("custom alphabet characters must be distinct")

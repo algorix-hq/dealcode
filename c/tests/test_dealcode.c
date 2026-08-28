@@ -195,6 +195,55 @@ static void test_v1_vectors(void)
                   dealcode_strerror(err), cfg->normalize[j].n);
         }
 
+        for (size_t j = 0; j < cfg->n_range_counters; j++) {
+            char code[DEALCODE_MAX_CODE_SIZE];
+            err = dealcode_encode(dc, cfg->range_counters[j], code,
+                                  sizeof code);
+            CHECK(err == DEALCODE_ERR_RANGE,
+                  "v1 %s: encode(%" PRIu64 ") = %s, want range error",
+                  cfg->name, cfg->range_counters[j], dealcode_strerror(err));
+        }
+
+        dealcode_free(dc);
+    }
+}
+
+static void test_v1_invalid_configs(void)
+{
+    for (size_t i = 0; i < TV_V1_INVALID_CONFIG_COUNT; i++) {
+        const tv_invalid_config_t *tv = &TV_V1_INVALID_CONFIGS[i];
+        uint8_t key[64];
+        dealcode_config_t c = { 0 };
+        if (tv->key_hex != NULL) {
+            const size_t key_len = hex_decode(tv->key_hex, key, sizeof key);
+            CHECK(key_len != (size_t)-1, "invalid-config %s: bad key hex",
+                  tv->name);
+            if (key_len == (size_t)-1)
+                continue;
+            c.key = key;
+            c.key_len = key_len;
+        } else {
+            c.key_string = tv->key_string;
+        }
+        c.alphabet = tv->alphabet;
+        c.min_length = tv->min_length;
+        c.max_length = tv->max_length;
+        c.domain = tv->domain;
+
+        dealcode_t *dc = NULL;
+        dealcode_err_t err = dealcode_new(&c, &dc);
+        CHECK(err == DEALCODE_ERR_CONFIG && dc == NULL,
+              "invalid-config %s: got %s, want config error", tv->name,
+              dealcode_strerror(err));
+
+        /* the _ex form must agree, and must explain itself */
+        char errbuf[DEALCODE_ERRBUF_SIZE];
+        err = dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf);
+        CHECK(err == DEALCODE_ERR_CONFIG && dc == NULL,
+              "invalid-config %s: _ex got %s, want config error", tv->name,
+              dealcode_strerror(err));
+        CHECK(errbuf[0] != '\0',
+              "invalid-config %s: _ex must write a diagnostic", tv->name);
         dealcode_free(dc);
     }
 }
@@ -389,6 +438,227 @@ static void test_config_errors(void)
               "config: radix^min_length == 100 must be accepted");
         dealcode_free(dc);
     }
+}
+
+/* Guard A (SPEC.md §3.2): a custom alphabet that is not exactly a preset
+ * name but ASCII-case-insensitively equals one must be rejected; the exact
+ * preset name keeps resolving as the preset. */
+static void test_preset_name_alphabet_guard(void)
+{
+    static const char *const disguised[] = {
+        "DEC",  "Dec",  "HEX",       "Hex",       "hEx",
+        "BASE32", "Base32", "CROCKFORD", "Crockford",
+        "BASE36", "Base36", "BASE58", "Base58",
+        "BASE62", "Base62", "BASE64URL", "Base64Url", "base64URL",
+    };
+    dealcode_config_t c;
+    for (size_t i = 0; i < sizeof disguised / sizeof disguised[0]; i++) {
+        memset(&c, 0, sizeof c);
+        c.key_string = "guard-key";
+        c.alphabet = disguised[i];
+        dealcode_t *dc = NULL;
+        CHECK(dealcode_new(&c, &dc) == DEALCODE_ERR_CONFIG && dc == NULL,
+              "guard A: alphabet \"%s\" must be rejected", disguised[i]);
+        dealcode_free(dc);
+    }
+
+    /* exact preset names still resolve as presets */
+    memset(&c, 0, sizeof c);
+    c.key_string = "guard-key";
+    c.alphabet = "hex";
+    dealcode_t *dc = NULL;
+    CHECK(dealcode_new(&c, &dc) == DEALCODE_OK, "guard A: exact \"hex\" ok");
+    if (dc != NULL)
+        CHECK(strcmp(dealcode_alphabet(dc), "0123456789abcdef") == 0,
+              "guard A: \"hex\" resolves as the preset");
+    dealcode_free(dc);
+    dc = NULL;
+
+    /* genuinely custom alphabets that merely resemble names still work */
+    static const char *const genuine[] = { "HEXA", "xeh", "dce", "based" };
+    for (size_t i = 0; i < sizeof genuine / sizeof genuine[0]; i++) {
+        memset(&c, 0, sizeof c);
+        c.key_string = "guard-key";
+        c.alphabet = genuine[i];
+        CHECK(dealcode_new(&c, &dc) == DEALCODE_OK,
+              "guard A: custom \"%s\" must be accepted", genuine[i]);
+        if (dc != NULL)
+            CHECK(strcmp(dealcode_alphabet(dc), genuine[i]) == 0,
+                  "guard A: custom \"%s\" is used verbatim", genuine[i]);
+        dealcode_free(dc);
+        dc = NULL;
+    }
+
+    /* exact diagnostic wording */
+    char errbuf[DEALCODE_ERRBUF_SIZE];
+    memset(&c, 0, sizeof c);
+    c.key_string = "guard-key";
+    c.alphabet = "HEX";
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+              DEALCODE_ERR_CONFIG,
+          "guard A: _ex rejects \"HEX\"");
+    CHECK(strcmp(errbuf,
+                 "custom alphabet \"HEX\" matches the preset name \"hex\" — "
+                 "pass \"hex\" for the preset, or a genuinely custom "
+                 "alphabet") == 0,
+          "guard A: diagnostic, got \"%s\"", errbuf);
+}
+
+/* Guard B (SPEC.md §2.1): a STRING key that ASCII-case-insensitively equals
+ * a preset alphabet name must be rejected (swapped-arguments trap). Byte
+ * keys are unaffected. */
+static void test_preset_name_key_guard(void)
+{
+    static const char *const names[] = {
+        "dec", "hex", "base32", "crockford", "base36", "base58",
+        "base62", "base64url", "HEX", "Crockford", "BASE64url",
+    };
+    dealcode_config_t c;
+    for (size_t i = 0; i < sizeof names / sizeof names[0]; i++) {
+        memset(&c, 0, sizeof c);
+        c.key_string = names[i];
+        dealcode_t *dc = NULL;
+        CHECK(dealcode_new(&c, &dc) == DEALCODE_ERR_CONFIG && dc == NULL,
+              "guard B: string key \"%s\" must be rejected", names[i]);
+        dealcode_free(dc);
+    }
+
+    /* near-misses are fine */
+    static const char *const fine[] = { "crockford1", "hex ", " hex",
+                                        "base-62", "hexhex" };
+    for (size_t i = 0; i < sizeof fine / sizeof fine[0]; i++) {
+        memset(&c, 0, sizeof c);
+        c.key_string = fine[i];
+        dealcode_t *dc = NULL;
+        CHECK(dealcode_new(&c, &dc) == DEALCODE_OK,
+              "guard B: string key \"%s\" must be accepted", fine[i]);
+        dealcode_free(dc);
+    }
+
+    /* BYTE keys spelling a preset name are unaffected */
+    memset(&c, 0, sizeof c);
+    c.key = (const uint8_t *)"crockford";
+    c.key_len = 9;
+    dealcode_t *dc = NULL;
+    CHECK(dealcode_new(&c, &dc) == DEALCODE_OK,
+          "guard B: byte key \"crockford\" must be accepted");
+    dealcode_free(dc);
+    dc = NULL;
+
+    /* exact diagnostic wording (echoing the key is deliberate here: a
+     * preset name is not a secret) */
+    char errbuf[DEALCODE_ERRBUF_SIZE];
+    memset(&c, 0, sizeof c);
+    c.key_string = "crockford";
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+              DEALCODE_ERR_CONFIG,
+          "guard B: _ex rejects \"crockford\"");
+    CHECK(strcmp(errbuf,
+                 "string key \"crockford\" is a preset alphabet name — did "
+                 "you swap the key and alphabet fields?") == 0,
+          "guard B: diagnostic, got \"%s\"", errbuf);
+}
+
+/* dealcode_new_ex: diagnostic channel behaviour. */
+static void test_new_ex_details(void)
+{
+    dealcode_config_t c;
+    dealcode_t *dc = NULL;
+    char errbuf[DEALCODE_ERRBUF_SIZE];
+
+    /* success: OK, handle set, errbuf cleared to "" */
+    memset(&c, 0, sizeof c);
+    c.key_string = "detail-key";
+    memset(errbuf, 'x', sizeof errbuf);
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) == DEALCODE_OK &&
+              dc != NULL,
+          "new_ex: success");
+    CHECK(errbuf[0] == '\0', "new_ex: errbuf empty on success");
+    dealcode_free(dc);
+    dc = NULL;
+
+    /* NULL errbuf / zero length are fine */
+    memset(&c, 0, sizeof c);
+    c.key_string = "";
+    CHECK(dealcode_new_ex(&c, &dc, NULL, 0) == DEALCODE_ERR_CONFIG,
+          "new_ex: NULL errbuf tolerated");
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, 0) == DEALCODE_ERR_CONFIG,
+          "new_ex: zero-length errbuf tolerated");
+
+    /* specific messages */
+    memset(&c, 0, sizeof c);
+    c.key_string = "";
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "key: empty") == 0,
+          "new_ex: empty key message, got \"%s\"", errbuf);
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.alphabet = "abca";
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "alphabet: duplicate character 'a'") == 0,
+          "new_ex: duplicate char message, got \"%s\"", errbuf);
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.min_length = 1;
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "min_length 1 < 2") == 0,
+          "new_ex: min_length message, got \"%s\"", errbuf);
+
+    {
+        static char domain[300];
+        memset(domain, 'a', 256);
+        domain[256] = '\0';
+        memset(&c, 0, sizeof c);
+        c.key_string = "k";
+        c.domain = domain;
+        CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                      DEALCODE_ERR_CONFIG &&
+                  strcmp(errbuf,
+                         "domain exceeds 255 UTF-8 bytes (got 256)") == 0,
+              "new_ex: domain message, got \"%s\"", errbuf);
+    }
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.min_length = 8;
+    c.max_length = 7;
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "max_length 7 < min_length 8") == 0,
+          "new_ex: max<min message, got \"%s\"", errbuf);
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.max_length = 33;
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "radix^max_length (16^33) exceeds 2^128") == 0,
+          "new_ex: max_length overflow message, got \"%s\"", errbuf);
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.alphabet = "01";
+    c.min_length = 6;
+    CHECK(dealcode_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "radix^min_length (2^6) is below FF1's minimum "
+                             "code space of 100") == 0,
+          "new_ex: small code space message, got \"%s\"", errbuf);
+
+    /* truncation: message cut to fit, still NUL-terminated */
+    char tiny[8];
+    memset(&c, 0, sizeof c);
+    c.key_string = "";
+    CHECK(dealcode_new_ex(&c, &dc, tiny, sizeof tiny) ==
+                  DEALCODE_ERR_CONFIG &&
+              strlen(tiny) == sizeof tiny - 1 &&
+              strncmp(tiny, "key: em", sizeof tiny - 1) == 0,
+          "new_ex: truncated message, got \"%s\"", tiny);
 }
 
 static void test_defaults(void)
@@ -688,9 +958,13 @@ int main(void)
 {
     test_nist_ff1();
     test_v1_vectors();
+    test_v1_invalid_configs();
     test_buffer_errors();
     test_range_errors();
     test_config_errors();
+    test_preset_name_alphabet_guard();
+    test_preset_name_key_guard();
+    test_new_ex_details();
     test_defaults();
     test_roundtrips();
     test_counter_bound_rejection();

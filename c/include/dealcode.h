@@ -22,7 +22,7 @@
  *     if (dealcode_new(&cfg, &dc) != DEALCODE_OK) { ... }
  *
  *     char code[DEALCODE_MAX_CODE_SIZE];
- *     dealcode_encode(dc, 42, code, sizeof code);   // e.g. "4b71b7"
+ *     dealcode_encode(dc, 42, code, sizeof code);   // e.g. "59e5f2"
  *
  *     uint64_t n;
  *     dealcode_decode(dc, code, &n);                // n == 42
@@ -49,6 +49,12 @@
 #ifdef __cplusplus
 extern "C" {
 #endif
+
+/**
+ * @brief Library version (also the dealcode format is version 1; see
+ * SPEC.md). Matches the Version field of the installed dealcode.pc.
+ */
+#define DEALCODE_VERSION "1.0.0"
 
 /**
  * @brief Result codes. All API functions return one of these.
@@ -88,7 +94,11 @@ typedef struct dealcode_st dealcode_t;
  *    AES-256 key = SHA-256("dealcode/v1/kdf" || material);
  *  - a string is *always* derived from its UTF-8 bytes, regardless of length
  *    or content (a hex-looking string is not auto-decoded);
- *  - empty key material is a DEALCODE_ERR_CONFIG.
+ *  - empty key material is a DEALCODE_ERR_CONFIG;
+ *  - a string that ASCII-case-insensitively equals a preset alphabet name
+ *    ("dec", "hex", ..., see `alphabet`) is a DEALCODE_ERR_CONFIG — it is
+ *    almost certainly a swapped key/alphabet argument (SPEC.md §2.1). Byte
+ *    keys are unaffected.
  */
 typedef struct {
     const uint8_t *key;        /**< Key material as bytes, or NULL. */
@@ -100,6 +110,10 @@ typedef struct {
                                     "base64url") or a custom alphabet of 2-94
                                     distinct printable ASCII characters
                                     (0x21-0x7E). Preset names win on conflict.
+                                    A custom alphabet that is not exactly a
+                                    preset name but ASCII-case-insensitively
+                                    equals one ("HEX", "Base62", ...) is a
+                                    DEALCODE_ERR_CONFIG (SPEC.md §3.2).
                                     NULL means "hex". */
     int min_length;            /**< Minimum code length; 0 means the default
                                     (6). Must satisfy min_length >= 2 and
@@ -129,6 +143,38 @@ typedef struct {
  *         DEALCODE_ERR_NOMEM. On error `*out` is set to NULL.
  */
 dealcode_err_t dealcode_new(const dealcode_config_t *cfg, dealcode_t **out);
+
+/**
+ * @brief Recommended size for the `errbuf` argument of dealcode_new_ex().
+ * Every diagnostic the library produces fits in a buffer of this size.
+ */
+#define DEALCODE_ERRBUF_SIZE 256
+
+/**
+ * @brief Create a codec, with a human-readable diagnostic on failure.
+ *
+ * Behaves exactly like dealcode_new(), and additionally, when `errbuf` is
+ * non-NULL and `errbuf_len` > 0:
+ *  - on failure, writes a one-line, NUL-terminated explanation naming the
+ *    offending field or rule (e.g. "alphabet: duplicate character 'a'",
+ *    "min_length 1 < 2", "domain exceeds 255 UTF-8 bytes (got 256)"),
+ *    truncated to fit `errbuf_len`;
+ *  - on success, writes an empty string.
+ *
+ * The diagnostic never echoes key material, with one deliberate exception:
+ * a string key rejected for being a preset alphabet name is echoed verbatim
+ * (it is a preset name, not a secret) to make the swapped-arguments mistake
+ * obvious.
+ *
+ * @param cfg        Configuration; see dealcode_config_t. Must not be NULL.
+ * @param out        Receives the new handle on success. Must not be NULL.
+ * @param errbuf     Buffer for the diagnostic, or NULL for none.
+ * @param errbuf_len Size of `errbuf` in bytes (DEALCODE_ERRBUF_SIZE
+ *                   recommended).
+ * @return Same as dealcode_new().
+ */
+dealcode_err_t dealcode_new_ex(const dealcode_config_t *cfg, dealcode_t **out,
+                               char *errbuf, size_t errbuf_len);
 
 /**
  * @brief Destroy a codec and wipe its key material. NULL is a no-op.

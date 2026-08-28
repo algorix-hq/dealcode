@@ -43,11 +43,32 @@ func Preset(name string) (chars string, ok bool) {
 	return a.chars, ok
 }
 
+// asciiLower lowercases A-Z only, leaving every other byte untouched. The
+// preset-name guards (SPEC.md §2.1, §3.2) are defined in terms of ASCII case
+// folding, not Unicode case folding.
+func asciiLower(s string) string {
+	b := []byte(s)
+	for i, c := range b {
+		if 'A' <= c && c <= 'Z' {
+			b[i] = c + ('a' - 'A')
+		}
+	}
+	return string(b)
+}
+
 // resolveAlphabet resolves a preset name or validates a custom alphabet
 // string (SPEC.md §3.2). Preset names win on conflict.
 func resolveAlphabet(s string) (alphabet, error) {
 	if a, ok := presets[s]; ok {
 		return a, nil
+	}
+	// SPEC §3.2: a custom alphabet that ASCII-case-insensitively equals a
+	// preset name is almost certainly a misspelled preset — accepting it
+	// would silently build a codec over the letters of the name.
+	if lower := asciiLower(s); s != lower {
+		if _, ok := presets[lower]; ok {
+			return alphabet{}, fmt.Errorf("custom alphabet %q matches the preset name %q — pass %q for the preset, or a genuinely custom alphabet", s, lower, lower)
+		}
 	}
 	if len(s) < 2 || len(s) > 94 {
 		return alphabet{}, fmt.Errorf("custom alphabet must have 2 to 94 characters, got %d", len(s))
