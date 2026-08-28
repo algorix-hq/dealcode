@@ -94,12 +94,12 @@ Dealcode(key, "!@#$%^&*")                          # your own alphabet, why not
 
 !!! note "Registry status"
 
-    The packages are **not yet published** to PyPI, npm, crates.io, or Maven
-    Central — the install commands above are what they will be once releases
-    are cut. Today, install from the repository: `go get` already works
-    against GitHub directly, and the other languages install from a checkout
-    (see each [language page](languages/python.md)). C and C++ are vendored
-    by design.
+    v1.0.0 is live on [PyPI](https://pypi.org/project/dealcode/),
+    [npm](https://www.npmjs.com/package/dealcode),
+    [crates.io](https://crates.io/crates/dealcode), and
+    [Maven Central](https://central.sonatype.com/artifact/io.algorix/dealcode);
+    `go get` resolves from GitHub directly. C and C++ are vendored by
+    design (see each [language page](languages/python.md)).
 
 Everything else is dependency-free by design: FF1 and the dealcode layer are
 implemented from the NIST specification in each language and validated

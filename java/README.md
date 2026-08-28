@@ -13,10 +13,6 @@ the [dealcode spec](../SPEC.md).
 </dependency>
 ```
 
-> **Not yet on Maven Central.** Until the first release is published, clone the
-> repository and run `cd java && mvn install` to put the artifact in your local
-> repository.
-
 Requires Java 17+. **Zero runtime dependencies** — AES and SHA-256 come from
 the JDK's built-in JCE providers.
 

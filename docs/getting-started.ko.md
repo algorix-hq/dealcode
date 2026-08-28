@@ -5,13 +5,6 @@
 구현의 README에서 그대로 가져온 것으로 — 키 규칙도, 출력도 모든 언어에서
 비트 단위로 동일합니다.
 
-!!! note "지금은 저장소에서 설치하세요"
-
-    패키지는 아직 PyPI, npm, crates.io, Maven Central에 배포되지
-    않았습니다. 아래 설치 명령은 릴리스 이후의 레지스트리 명령이고, 그
-    전까지는 [저장소](https://github.com/algorix-hq/dealcode) 체크아웃에서
-    설치합니다 — 방법은 각 [언어 페이지](languages/python.ko.md)에
-    있습니다.
 
 ## 퀵스타트
 

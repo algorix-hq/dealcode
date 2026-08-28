@@ -40,8 +40,8 @@ embedded version — it is versioned by the `go/vX.Y.Z` tag.
      Note: use plain `mvn package` for local artifacts — sources/javadoc
      jars are already attached by the pom; invoking `source:jar
      javadoc:jar` on top of `package` fails with "duplicated artifacts".
-   - crates.io: `cd rust && cargo publish` (needs `cargo login` with a
-     publish-scoped token; no OIDC support yet).
+   - crates.io: `gh workflow run publish-crates.yml` (Trusted
+     Publishing/OIDC).
    - Go: nothing beyond the `go/vX.Y.Z` tag. Optionally warm the proxy:
      `GOPROXY=https://proxy.golang.org go list -m
      github.com/algorix-hq/dealcode/go@vX.Y.Z`

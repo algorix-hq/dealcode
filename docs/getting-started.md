@@ -5,13 +5,6 @@ alphabet, min/max length, domain), then `encode` / `decode`. The examples
 below are taken from each implementation's README — same key material rules,
 same outputs, bit-identical across languages.
 
-!!! note "Install from the repository for now"
-
-    The packages are not yet published to PyPI, npm, crates.io, or Maven
-    Central. The install commands show the eventual registry commands;
-    until releases are cut, install from a checkout of
-    [the repository](https://github.com/algorix-hq/dealcode) — each
-    [language page](languages/python.md) shows how.
 
 ## Quickstart
 

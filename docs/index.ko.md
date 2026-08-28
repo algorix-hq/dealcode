@@ -93,12 +93,13 @@ Dealcode(key, "!@#$%^&*")                          # 커스텀 알파벳도 그�
 
 !!! note "레지스트리 배포 상태"
 
-    패키지는 아직 PyPI, npm, crates.io, Maven Central에 **배포되지
-    않았습니다** — 위 설치 명령은 릴리스가 나간 뒤의 명령입니다. 지금은
-    저장소에서 직접 설치하세요. `go get`은 이미 GitHub에서 바로 동작하고,
-    나머지 언어는 체크아웃에서 설치합니다(각
-    [언어 페이지](languages/python.ko.md) 참고). C와 C++는 원래부터
-    벤더링 방식입니다.
+    v1.0.0이 [PyPI](https://pypi.org/project/dealcode/),
+    [npm](https://www.npmjs.com/package/dealcode),
+    [crates.io](https://crates.io/crates/dealcode),
+    [Maven Central](https://central.sonatype.com/artifact/io.algorix/dealcode)에
+    출시됐습니다. `go get`은 GitHub에서 바로 동작합니다. C와 C++는
+    원래부터 벤더링 방식입니다(각
+    [언어 페이지](languages/python.ko.md) 참고).
 
 그 외 의존성은 의도적으로 0입니다. FF1과 dealcode 레이어는 각 언어에서
 NIST 명세로부터 직접 구현했고, NIST 공식 샘플 벡터와 이 레포의 공유
