@@ -7,6 +7,32 @@ scope; format v1 outputs never change (see SPEC.md).
 
 ## Unreleased
 
+Maintenance: dependency and toolchain refresh plus registry-page polish.
+No changes to the code format — v1/v1c outputs are bit-identical to 1.0.0.
+
+### Implementations
+- Rust: `aes` 0.9 and `sha2` 0.11 (RustCrypto stable series); MSRV raised
+  to 1.85; `Cargo.lock` now committed for reproducible CI builds.
+- Java: test suite on JUnit 6; Maven plugin refresh (javadoc 3.12.0,
+  compiler 3.15.0, surefire 3.5.6, gpg 3.2.8); `jackson-databind` 2.18.9
+  (security update, test scope).
+- JavaScript: `@types/node` 26 (dev-only).
+
+### Registry pages & docs
+- Package metadata on PyPI, npm, and crates.io links the documentation
+  site (<https://algorix-hq.github.io/dealcode/>); README gains registry
+  version badges. The next release republishes every package with OIDC
+  Trusted Publishing provenance and refreshed registry READMEs.
+
+### Infrastructure
+- CI runs automatically on pushes to `main` and on pull requests; docs
+  deploy on pushes touching the site's sources.
+- Dependabot with grouped minor/patch updates per ecosystem, an automerge
+  chain for green Dependabot PRs, SHA-pinned publish actions, branch/tag
+  protection rulesets, CODEOWNERS, and expanded RELEASING runbooks
+  (release infrastructure, per-registry broken-release remedies, GPG key
+  lifecycle).
+
 ## 1.0.0 — 2026-08-28
 
 Initial release.
