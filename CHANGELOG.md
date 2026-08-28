@@ -14,7 +14,7 @@ No changes to the code format — v1/v1c outputs are bit-identical to 1.0.0.
 - Rust: `aes` 0.9 and `sha2` 0.11 (RustCrypto stable series); MSRV raised
   to 1.85; `Cargo.lock` now committed for reproducible CI builds.
 - Java: test suite on JUnit 6; Maven plugin refresh (javadoc 3.12.0,
-  compiler 3.15.0, surefire 3.5.6, gpg 3.2.8); `jackson-databind` 2.18.9
+  compiler 3.15.0, surefire 3.5.6, gpg 3.2.8); `jackson-databind` 2.22.2
   (security update, test scope).
 - JavaScript: `@types/node` 26 (dev-only).
 
