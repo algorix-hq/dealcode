@@ -1,0 +1,5 @@
+# Default reviewers for all changes. SPEC.md and testvectors/ are the
+# conformance-critical core — same owner, called out explicitly.
+* @ryankwondev
+/SPEC.md @ryankwondev
+/testvectors/ @ryankwondev

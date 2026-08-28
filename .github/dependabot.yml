@@ -1,0 +1,33 @@
+# Keep GitHub Actions and per-language dependencies patched.
+# Runtime dependencies are deliberately minimal (platform/audited crypto
+# only), so most churn here is dev/test tooling and action pins.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+  - package-ecosystem: pip
+    directory: /python
+    schedule:
+      interval: monthly
+  - package-ecosystem: npm
+    directory: /js
+    schedule:
+      interval: monthly
+  - package-ecosystem: cargo
+    directory: /rust
+    schedule:
+      interval: monthly
+  - package-ecosystem: maven
+    directory: /java
+    schedule:
+      interval: monthly
+  - package-ecosystem: gomod
+    directory: /go
+    schedule:
+      interval: monthly
+  - package-ecosystem: pip
+    directory: /docs
+    schedule:
+      interval: monthly
