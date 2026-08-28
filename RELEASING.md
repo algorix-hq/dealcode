@@ -63,8 +63,9 @@ next from scratch:
    `python/README.md`, `js/README.md`, `java/README.md`, `rust/README.md`
    (install sections).
 3. Bump all seven version strings listed above (skip for the first release).
-4. Run everything locally (the CI jobs' commands per directory), then push
-   and dispatch CI: `gh workflow run ci.yml -f only=all` — wait for green.
+4. Run everything locally (the commands are in the `jobs:` of
+   `.github/workflows/ci.yml`), then push — CI runs automatically on the
+   push to `main`; wait for green.
 5. Tag and push: `git tag vX.Y.Z && git tag go/vX.Y.Z && git push origin
    vX.Y.Z go/vX.Y.Z`.
 6. Publish, in any order:

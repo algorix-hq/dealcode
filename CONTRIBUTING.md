@@ -53,9 +53,11 @@ name in the `only` input's `options` list). That's the whole bar.
 
 ## CI
 
-CI is currently **manual** (`workflow_dispatch`) to keep costs down: run
-everything locally first, push, then trigger the `ci` workflow from the
-Actions tab (`gh workflow run ci.yml`).
+CI runs automatically on every push to `main` and on every pull request
+(all seven implementations plus a vectors-reproducibility check). Please
+still run your language's suite locally before pushing — it's faster
+feedback than the runners. `gh workflow run ci.yml -f only=<job>` remains
+available for one-off manual runs of a single job.
 
 ## Releasing (maintainers)
 

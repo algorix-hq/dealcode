@@ -1,11 +1,13 @@
 # Conformance CI for all implementations.
 #
-# Trigger: MANUAL ONLY (workflow_dispatch) for now — run it from the Actions
-# tab (or `gh workflow run ci.yml`) after pushing. Once the project stabilizes,
-# add push/pull_request triggers back.
+# Runs automatically on pushes to main and on pull requests; the manual
+# dispatch remains for one-off runs of a single job via the `only` input.
 name: ci
 
 on:
+  push:
+    branches: [main]
+  pull_request:
   workflow_dispatch:
     inputs:
       only:

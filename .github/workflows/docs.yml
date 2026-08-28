@@ -1,19 +1,15 @@
 name: docs
 
 on:
-  # Manual only for now (project policy: no push triggers to keep CI costs
-  # down — run `mkdocs build --strict` locally first, push, then trigger
-  # from the Actions tab or `gh workflow run docs.yml`).
   workflow_dispatch:
-  # When push triggers are enabled later, uncomment:
-  # push:
-  #   branches: [main]
-  #   paths:
-  #     - "docs/**"
-  #     - "mkdocs.yml"
-  #     - "SPEC.md"
-  #     - "CONTRIBUTING.md"
-  #     - ".github/workflows/docs.yml"
+  push:
+    branches: [main]
+    paths:
+      - "docs/**"
+      - "mkdocs.yml"
+      - "SPEC.md"
+      - "CONTRIBUTING.md"
+      - ".github/workflows/docs.yml"
 
 permissions:
   contents: read
