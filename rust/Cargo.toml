@@ -16,7 +16,7 @@ documentation = "https://docs.rs/dealcode"
 exclude = ["tests/"]
 
 [dependencies]
-aes = "0.8"
+aes = "0.9"
 sha2 = "0.10"
 
 [dev-dependencies]
