@@ -135,6 +135,18 @@ hex, `< 16^7` → 7자리, ...), `n`을 `d`자리 숫자로 쓴 뒤 그 숫자�
     중인 네임스페이스에서 하나라도 바꾸면 기존 코드와 충돌할 수 있습니다.
     새로운 체계가 필요하면 → 새 도메인(또는 새 키 + 새 네임스페이스).
 
+## AI 코딩 에이전트와 함께
+
+AI 어시스턴트로 dealcode를 쓰는 코드를 작성하나요? 에이전트가 읽는 형태의
+문서 — [`llms.txt`](https://algorix-hq.github.io/dealcode/llms.txt)
+(인덱스), [`llms-full.txt`](https://algorix-hq.github.io/dealcode/llms-full.txt)
+(스펙 포함 전체 문서를 한 파일로) — 를 넘겨주고, 사용 규칙 스킬을
+설치하면 운영 불변식(설정 동결, decode 의미론, 순환 모드)을 알게 됩니다:
+
+```sh
+npx skills add algorix-hq/dealcode
+```
+
 ## 라이선스
 
 [MIT](https://github.com/algorix-hq/dealcode/blob/main/LICENSE) © Algorix

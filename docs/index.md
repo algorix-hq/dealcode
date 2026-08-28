@@ -137,6 +137,20 @@ that *authenticates*. The full reasoning and an alternatives table live in
     already-issued codes. New scheme → new domain (or new key + new
     namespace).
 
+## For AI coding agents
+
+Using an AI assistant to write code against dealcode? Give it the docs in
+agent-readable form — [`llms.txt`](https://algorix-hq.github.io/dealcode/llms.txt)
+(index) and
+[`llms-full.txt`](https://algorix-hq.github.io/dealcode/llms-full.txt)
+(the entire documentation, spec included, as one file) — and install the
+usage-rules skill so it knows the operational invariants (frozen config,
+decode semantics, cycling mode):
+
+```sh
+npx skills add algorix-hq/dealcode
+```
+
 ## License
 
 [MIT](https://github.com/algorix-hq/dealcode/blob/main/LICENSE) © Algorix

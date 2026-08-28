@@ -213,6 +213,9 @@ an existence check or your own check digit).
 - Wire it to your database: [Database integration](guide/database.md)
 - Alphabets, domains, lengths, key rules: [Configuration](guide/configuration.md)
 - What the key does and doesn't protect: [Security model](guide/security.md)
+- Coding with an AI agent? `npx skills add algorix-hq/dealcode`, and the
+  full docs in one file:
+  [llms-full.txt](https://algorix-hq.github.io/dealcode/llms-full.txt)
 
 If your codes must stay exactly the same length forever — even after the
 code space fills up — see the
