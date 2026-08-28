@@ -2,6 +2,13 @@
 
 [English](README.md) | **한국어** · **문서:** <https://algorix-hq.github.io/dealcode/ko/>
 
+[![PyPI](https://img.shields.io/pypi/v/dealcode)](https://pypi.org/project/dealcode/)
+[![npm](https://img.shields.io/npm/v/dealcode)](https://www.npmjs.com/package/dealcode)
+[![crates.io](https://img.shields.io/crates/v/dealcode)](https://crates.io/crates/dealcode)
+[![Maven Central](https://img.shields.io/maven-central/v/io.algorix/dealcode)](https://central.sonatype.com/artifact/io.algorix/dealcode)
+[![Go Reference](https://pkg.go.dev/badge/github.com/algorix-hq/dealcode/go.svg)](https://pkg.go.dev/github.com/algorix-hq/dealcode/go)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 카운터에서 **절대 겹치지 않는, 랜덤처럼 보이는 코드**를 만드는 라이브러리 —
 잘 섞인 카드 덱에서 딜러가 한 장씩 나눠주는 것과 같습니다. 모든 카드는
 정확히 한 번씩 나오고, 순서는 랜덤처럼 보이고, 딜러는 몇 장을 돌렸는지만

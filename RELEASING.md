@@ -7,14 +7,51 @@ Versions are kept in lock-step: `python/pyproject.toml` +
 `cpp/CMakeLists.txt` (`project(... VERSION ...)`) must all agree. Go has no
 embedded version — it is versioned by the `go/vX.Y.Z` tag.
 
-## Prerequisites (one-time)
+## Release infrastructure (already set up — reference)
 
-- PyPI API token, and `build` + `twine` installed (`pip install build twine`).
-- npm account with publish rights (`npm login`).
-- crates.io token (`cargo login`).
-- Maven Central Portal token configured as server id `central` in
-  `~/.m2/settings.xml`, plus a GPG signing key.
-- GitHub Pages source set to "GitHub Actions" (repo settings).
+Nothing needs to be installed or logged in for a normal release; every
+registry publishes from GitHub Actions. What exists and where:
+
+| Registry | Workflow | Auth | GitHub environment |
+|---|---|---|---|
+| PyPI | `publish-pypi.yml` | Trusted Publishing (OIDC) — no credentials | `pypi` (no secrets) |
+| npm | `publish-npm.yml` | Trusted Publishing (OIDC) — no credentials | `npm` (no secrets) |
+| crates.io | `publish-crates.yml` | Trusted Publishing (OIDC) — no credentials | `crates-io` (no secrets) |
+| Maven Central | `publish-maven.yml` | GPG key + Portal token from secrets | `maven-central` (3 secrets) |
+
+- **Trusted Publisher registrations** (on each registry's settings page,
+  all pointing at `algorix-hq/dealcode` + the workflow filename + the
+  environment name above). If the repo is renamed, a workflow file is
+  renamed, or an environment changes, re-register there — the registry
+  matches these values exactly.
+- **`maven-central` secrets**: `MAVEN_GPG_PRIVATE_KEY` (armored private
+  key, no passphrase), `CENTRAL_TOKEN_USERNAME` / `CENTRAL_TOKEN_PASSWORD`
+  (Central Portal user token, name `dealcode-github-actions`).
+- **GPG signing key**: RSA-4096, fingerprint
+  `19D3 8E7A B544 83B0 F591 9413 F9C1 29AC 84DB 98F2`, **expires
+  2028-08-27**. Public key lives on keyserver.ubuntu.com and
+  keys.openpgp.org (Central verifies against them); the private key and
+  its revocation certificate are backed up in the maintainer's password
+  manager. Before expiry: `gpg --edit-key 84DB98F2` → `expire`, re-upload
+  the public key to both keyservers, update the environment secret.
+- **Rotating the Central token**: generate a new user token in the Portal
+  (this invalidates the old one), then
+  `gh secret set CENTRAL_TOKEN_USERNAME/-PASSWORD --env maven-central`.
+- GitHub Pages source is set to "GitHub Actions" (repo settings).
+
+Bootstrap quirks recorded from the 1.0.0 release, for whoever does this
+next from scratch:
+
+- npm and crates.io can only attach a Trusted Publisher to an **existing**
+  package/crate — a first-ever publish is manual. npm's 2FA web-auth flow
+  needs a real TTY (`npm publish` from an interactive shell); tokens do
+  not bypass publish 2FA anymore.
+- Maven Central rejected an ed25519 signing key ("could not find a public
+  key by the key fingerprint") — use RSA-4096, upload the public key to
+  the keyservers **before** deploying, and allow a few minutes'
+  propagation.
+- `central-publishing-maven-plugin` must be ≥ 0.11.0 (older versions
+  crash on the Portal API's `warnings` field).
 
 ## Checklist
 

@@ -5,6 +5,8 @@ follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/). Because the
 repo ships seven implementations of one frozen format, entries are grouped by
 scope; format v1 outputs never change (see SPEC.md).
 
+## Unreleased
+
 ## 1.0.0 — 2026-08-28
 
 Initial release.

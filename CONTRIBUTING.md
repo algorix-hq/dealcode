@@ -57,6 +57,13 @@ CI is currently **manual** (`workflow_dispatch`) to keep costs down: run
 everything locally first, push, then trigger the `ci` workflow from the
 Actions tab (`gh workflow run ci.yml`).
 
+## Releasing (maintainers)
+
+Registry publishing is automated per registry via the `publish-*.yml`
+workflows; the full checklist, the credential/Trusted-Publisher
+inventory, and hard-won bootstrap notes live in
+[RELEASING.md](RELEASING.md).
+
 ## License
 
 MIT. By contributing you agree your contribution is MIT-licensed.

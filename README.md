@@ -2,6 +2,13 @@
 
 **English** | [한국어](README.ko.md) · **Docs:** <https://algorix-hq.github.io/dealcode/>
 
+[![PyPI](https://img.shields.io/pypi/v/dealcode)](https://pypi.org/project/dealcode/)
+[![npm](https://img.shields.io/npm/v/dealcode)](https://www.npmjs.com/package/dealcode)
+[![crates.io](https://img.shields.io/crates/v/dealcode)](https://crates.io/crates/dealcode)
+[![Maven Central](https://img.shields.io/maven-central/v/io.algorix/dealcode)](https://central.sonatype.com/artifact/io.algorix/dealcode)
+[![Go Reference](https://pkg.go.dev/badge/github.com/algorix-hq/dealcode/go.svg)](https://pkg.go.dev/github.com/algorix-hq/dealcode/go)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+
 Collision-free, random-looking codes from a counter — like dealing cards from
 a shuffled deck. Every card comes out exactly once; the order looks random;
 the dealer only remembers how many cards have been dealt.
