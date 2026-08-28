@@ -2,6 +2,9 @@
 
 [English](README.md) | **한국어** · **문서:** <https://algorix-hq.github.io/dealcode/ko/>
 
+[![ci](https://github.com/algorix-hq/dealcode/actions/workflows/ci.yml/badge.svg)](https://github.com/algorix-hq/dealcode/actions/workflows/ci.yml)
+[![docs](https://github.com/algorix-hq/dealcode/actions/workflows/docs.yml/badge.svg)](https://algorix-hq.github.io/dealcode/)
+[![implementations](https://img.shields.io/badge/implementations-7_%C2%B7_bit--identical-1f6feb)](#구현체)
 [![PyPI](https://img.shields.io/pypi/v/dealcode)](https://pypi.org/project/dealcode/)
 [![npm](https://img.shields.io/npm/v/dealcode)](https://www.npmjs.com/package/dealcode)
 [![crates.io](https://img.shields.io/crates/v/dealcode)](https://crates.io/crates/dealcode)
@@ -152,6 +155,20 @@ hex, `< 16^7` → 7자리, ...), `n`을 `d`자리 숫자로 쓴 뒤 그 숫자�
 암호이므로, 같은 길이끼리는 순열이라 충돌 불가, 다른 길이끼리는 길이가
 달라서 충돌 불가입니다. `decode`는 역방향으로 돌리고 엄격하게 검증합니다.
 상세: [SPEC.md](SPEC.md) · 설계 근거: [docs/design.ko.md](docs/design.ko.md).
+
+## AI 코딩 에이전트와 함께
+
+AI 어시스턴트로 dealcode를 쓰는 코드를 작성하나요? 사용 스킬을 설치하면
+에이전트가 운영 규칙(설정 동결, decode 의미론, 순환 모드)을 알게 됩니다:
+
+```sh
+npx skills add algorix-hq/dealcode
+```
+
+에이전트가 읽는 문서도 준비돼 있습니다:
+[`llms.txt`](https://algorix-hq.github.io/dealcode/llms.txt) (인덱스) ·
+[`llms-full.txt`](https://algorix-hq.github.io/dealcode/llms-full.txt)
+(전체를 한 파일로).
 
 ## 레포 구성
 

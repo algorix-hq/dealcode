@@ -1,0 +1,38 @@
+# dealcode
+
+> Collision-free, random-looking codes from a counter — FF1 format-preserving
+> encryption (NIST SP 800-38G) with one normative spec and seven bit-identical
+> implementations: Python, TypeScript/JavaScript, Go, Java, Rust, C, C++.
+> Same key + config produces the same code in every language. Not encryption
+> for secrecy; codes are not auth tokens.
+
+Everything in one file: https://algorix-hq.github.io/dealcode/llms-full.txt
+
+## Docs
+
+- [Getting started](https://algorix-hq.github.io/dealcode/getting-started/):
+  install + quickstart in all seven languages
+- [Configuration](https://algorix-hq.github.io/dealcode/guide/configuration/):
+  alphabets, domains, lengths, key rules, the frozen-config rule, and the
+  fixed-length cycling mode
+- [Database integration](https://algorix-hq.github.io/dealcode/guide/database/):
+  sequence → encode → UNIQUE tripwire; decode is parsing, not proof of
+  existence
+- [Security model](https://algorix-hq.github.io/dealcode/guide/security/):
+  what the key does and doesn't protect
+
+## Reference
+
+- [Specification (normative)](https://raw.githubusercontent.com/algorix-hq/dealcode/main/SPEC.md):
+  format v1 + the v1c cycling mode, exact algorithms and constraints
+- [Test vectors](https://github.com/algorix-hq/dealcode/tree/main/testvectors):
+  NIST FF1 samples + cross-language conformance vectors
+
+## Optional
+
+- Agent skill for coding assistants: `npx skills add algorix-hq/dealcode`
+  (installs the `using-dealcode` usage rules)
+
+- [Why dealcode exists](https://algorix-hq.github.io/dealcode/philosophy/)
+- [Design decisions](https://algorix-hq.github.io/dealcode/design/)
+- [Contributing](https://raw.githubusercontent.com/algorix-hq/dealcode/main/CONTRIBUTING.md)

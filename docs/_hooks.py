@@ -60,6 +60,35 @@ def _github_target(match: re.Match) -> str:
     return f"]({REPO_URL}/{kind}/main/{head}{tail.rstrip('/')})"
 
 
+# Sources concatenated into site/llms-full.txt (order matters; SPEC.md is
+# included directly rather than via the docs/spec.md wrapper).
+_LLMS_FULL_SOURCES = [
+    "docs/index.md",
+    "docs/getting-started.md",
+    "docs/guide/configuration.md",
+    "docs/guide/database.md",
+    "docs/guide/security.md",
+    "SPEC.md",
+]
+
+
+def on_post_build(config) -> None:
+    """Emit llms-full.txt: the whole library documentation as one Markdown
+    file, for AI agents that prefer a single fetch (llmstxt.org)."""
+    root = _repo_root(config)
+    parts = [
+        "# dealcode — full documentation for LLMs\n\n"
+        "> Concatenated from the documentation site and the normative "
+        "SPEC.md.\n> Index: https://algorix-hq.github.io/dealcode/llms.txt\n"
+    ]
+    for rel in _LLMS_FULL_SOURCES:
+        with open(os.path.join(root, rel), encoding="utf-8") as fh:
+            parts.append(f"\n\n---\n<!-- source: {rel} -->\n\n" + fh.read())
+    out = os.path.join(config["site_dir"], "llms-full.txt")
+    with open(out, "w", encoding="utf-8") as fh:
+        fh.write("".join(parts))
+
+
 def on_page_markdown(markdown: str, page, config, files) -> str:
     markdown = _expand_snippets(markdown, _repo_root(config))
 

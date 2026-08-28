@@ -2,6 +2,9 @@
 
 **English** | [한국어](README.ko.md) · **Docs:** <https://algorix-hq.github.io/dealcode/>
 
+[![ci](https://github.com/algorix-hq/dealcode/actions/workflows/ci.yml/badge.svg)](https://github.com/algorix-hq/dealcode/actions/workflows/ci.yml)
+[![docs](https://github.com/algorix-hq/dealcode/actions/workflows/docs.yml/badge.svg)](https://algorix-hq.github.io/dealcode/)
+[![implementations](https://img.shields.io/badge/implementations-7_%C2%B7_bit--identical-1f6feb)](#implementations)
 [![PyPI](https://img.shields.io/pypi/v/dealcode)](https://pypi.org/project/dealcode/)
 [![npm](https://img.shields.io/npm/v/dealcode)](https://www.npmjs.com/package/dealcode)
 [![crates.io](https://img.shields.io/crates/v/dealcode)](https://crates.io/crates/dealcode)
@@ -154,6 +157,21 @@ those digits with FF1 — format-preserving encryption that outputs *another
 encryption is a bijection; different-length codes can't collide because they
 have different lengths. `decode` runs it backwards and validates strictly.
 Details: [SPEC.md](SPEC.md) · rationale: [docs/design.md](docs/design.md).
+
+## For AI coding agents
+
+Using an AI assistant to write code against dealcode? Install the usage
+skill so it knows the operational rules (frozen config, decode semantics,
+cycling mode):
+
+```sh
+npx skills add algorix-hq/dealcode
+```
+
+And point it at the docs in agent-readable form:
+[`llms.txt`](https://algorix-hq.github.io/dealcode/llms.txt) (index) ·
+[`llms-full.txt`](https://algorix-hq.github.io/dealcode/llms-full.txt)
+(everything in one file).
 
 ## Repository layout
 
