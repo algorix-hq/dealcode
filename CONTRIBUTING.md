@@ -64,7 +64,7 @@ available for one-off manual runs of a single job.
 Registry publishing is automated per registry via the `publish-*.yml`
 workflows; the full checklist, the credential/Trusted-Publisher
 inventory, and hard-won bootstrap notes live in
-[RELEASING.md](RELEASING.md).
+[RELEASING.md](https://github.com/algorix-hq/dealcode/blob/main/RELEASING.md).
 
 ## License
 
