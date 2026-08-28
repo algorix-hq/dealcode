@@ -11,7 +11,7 @@ updates:
       actions:
         patterns: ["*"]
     ignore:
-      # MSRV pin: CI deliberately tests at the documented minimum (1.75)
+      # MSRV pin: CI deliberately tests at the documented minimum (1.85)
       - dependency-name: dtolnay/rust-toolchain
   - package-ecosystem: pip
     directory: /python
