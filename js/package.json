@@ -58,7 +58,7 @@
     "test": "node --test test/*.test.mjs test/*.test.cjs"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.4.0",
     "typescript": "^5.5.0"
   }
 }
