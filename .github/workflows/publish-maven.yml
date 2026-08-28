@@ -1,0 +1,44 @@
+# Publish the Java package to Maven Central.
+#
+# Credentials come from the "maven-central" environment's secrets:
+#   MAVEN_GPG_PRIVATE_KEY   ASCII-armored GPG private key (no passphrase)
+#   CENTRAL_TOKEN_USERNAME  Central Portal user-token name
+#   CENTRAL_TOKEN_PASSWORD  Central Portal user-token secret
+#
+# autoPublish is false in the pom: after this workflow uploads and the
+# deployment validates, press "Publish" at
+# https://central.sonatype.com/publishing/deployments
+#
+# Trigger: MANUAL ONLY (workflow_dispatch) — run from the Actions tab or
+# `gh workflow run publish-maven.yml` after the release commit is on main.
+name: publish-maven
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment:
+      name: maven-central
+      url: https://central.sonatype.com/artifact/io.algorix/dealcode
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+          server-id: central
+          server-username: CENTRAL_USERNAME
+          server-password: CENTRAL_PASSWORD
+          gpg-private-key: ${{ secrets.MAVEN_GPG_PRIVATE_KEY }}
+      - run: mvn -B -Prelease deploy
+        working-directory: java
+        env:
+          CENTRAL_USERNAME: ${{ secrets.CENTRAL_TOKEN_USERNAME }}
+          CENTRAL_PASSWORD: ${{ secrets.CENTRAL_TOKEN_PASSWORD }}

@@ -31,14 +31,17 @@ embedded version — it is versioned by the `go/vX.Y.Z` tag.
 5. Tag and push: `git tag vX.Y.Z && git tag go/vX.Y.Z && git push origin
    vX.Y.Z go/vX.Y.Z`.
 6. Publish, in any order:
-   - PyPI: `cd python && python -m build && twine upload dist/*`
-   - npm: `cd js && npm publish` (`prepublishOnly` cleans, builds, tests)
-   - crates.io: `cd rust && cargo publish`
-   - Maven Central: `cd java && mvn -Prelease deploy`, then press
+   - PyPI: `gh workflow run publish-pypi.yml` (Trusted Publishing/OIDC —
+     no credentials needed).
+   - npm: `gh workflow run publish-npm.yml` (Trusted Publishing/OIDC).
+   - Maven Central: `gh workflow run publish-maven.yml` (GPG key + Portal
+     token live in the `maven-central` environment secrets), then press
      **Publish** in the Central Portal (`autoPublish` is deliberately off).
      Note: use plain `mvn package` for local artifacts — sources/javadoc
      jars are already attached by the pom; invoking `source:jar
      javadoc:jar` on top of `package` fails with "duplicated artifacts".
+   - crates.io: `cd rust && cargo publish` (needs `cargo login` with a
+     publish-scoped token; no OIDC support yet).
    - Go: nothing beyond the `go/vX.Y.Z` tag. Optionally warm the proxy:
      `GOPROXY=https://proxy.golang.org go list -m
      github.com/algorix-hq/dealcode/go@vX.Y.Z`
