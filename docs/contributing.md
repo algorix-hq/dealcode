@@ -15,8 +15,10 @@ title: Contributing
 ## Conformance in practice
 
 The bar for "this implementation is correct" is deliberately mechanical:
-pass both files in
-[`testvectors/`](https://github.com/algorix-hq/dealcode/tree/main/testvectors).
+pass the files in
+[`testvectors/`](https://github.com/algorix-hq/dealcode/tree/main/testvectors)
+(`v1c.json` covers the fixed-length cycling mode, required for
+implementations that ship it — all seven here do).
 
 **`ff1_nist.json`** pins the FF1 core to the nine official NIST sample
 vectors, independent of dealcode's own layer. If your FF1 is right, these

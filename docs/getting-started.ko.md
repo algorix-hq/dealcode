@@ -5,7 +5,6 @@
 구현의 README에서 그대로 가져온 것으로 — 키 규칙도, 출력도 모든 언어에서
 비트 단위로 동일합니다.
 
-
 ## 퀵스타트
 
 === "Python"
@@ -99,7 +98,7 @@
     cargo add dealcode
     ```
 
-    Rust ≥ 1.75. 런타임 의존성은 감사된 RustCrypto 크레이트 `aes`,
+    Rust ≥ 1.85. 런타임 의존성은 감사된 RustCrypto 크레이트 `aes`,
     `sha2`뿐입니다.
 
     ```rust

@@ -5,7 +5,6 @@ alphabet, min/max length, domain), then `encode` / `decode`. The examples
 below are taken from each implementation's README — same key material rules,
 same outputs, bit-identical across languages.
 
-
 ## Quickstart
 
 === "Python"
@@ -99,7 +98,7 @@ same outputs, bit-identical across languages.
     cargo add dealcode
     ```
 
-    Requires Rust ≥ 1.75. Only runtime dependencies: audited RustCrypto
+    Requires Rust ≥ 1.85. Only runtime dependencies: audited RustCrypto
     crates `aes` and `sha2`.
 
     ```rust

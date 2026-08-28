@@ -14,7 +14,6 @@
 cargo add dealcode
 ```
 
-
 ## 최소 예제
 
 ```rust

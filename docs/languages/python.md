@@ -13,7 +13,6 @@ Source of truth: [`python/` on GitHub](https://github.com/algorix-hq/dealcode/tr
 pip install dealcode
 ```
 
-
 ## Minimal example
 
 ```python

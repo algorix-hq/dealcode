@@ -17,7 +17,6 @@ Source of truth: [`java/` on GitHub](https://github.com/algorix-hq/dealcode/tree
 </dependency>
 ```
 
-
 ## Minimal example
 
 ```java

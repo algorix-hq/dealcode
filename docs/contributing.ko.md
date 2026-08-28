@@ -17,7 +17,8 @@ title: 기여하기
 
 "이 구현은 올바르다"의 기준은 의도적으로 기계적입니다:
 [`testvectors/`](https://github.com/algorix-hq/dealcode/tree/main/testvectors)의
-두 파일을 통과하면 됩니다.
+파일들을 통과하면 됩니다 (`v1c.json`은 고정 길이 순환 모드용으로, 이 모드를
+제공하는 구현에 필수입니다 — 여기 7개 구현 전부 해당).
 
 **`ff1_nist.json`**은 dealcode 자체 레이어와 무관하게 FF1 코어를 NIST 공식
 샘플 벡터 9개에 고정합니다. FF1이 맞으면 통과하고, 통과하면 서로 다른 7개

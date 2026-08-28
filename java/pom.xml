@@ -56,7 +56,7 @@
   </properties>
 
   <!-- Runtime: none. AES (AES/ECB/NoPadding) and SHA-256 come from the JDK's
-       built-in JCE providers. Test scope only: JUnit 5 + Jackson (to read the
+       built-in JCE providers. Test scope only: JUnit + Jackson (to read the
        shared JSON test vectors). -->
   <dependencies>
     <dependency>

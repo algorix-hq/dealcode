@@ -15,7 +15,6 @@ Source of truth: [`rust/` on GitHub](https://github.com/algorix-hq/dealcode/tree
 cargo add dealcode
 ```
 
-
 ## Minimal example
 
 ```rust

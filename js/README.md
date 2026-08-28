@@ -9,7 +9,6 @@ of the [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md)
 npm install dealcode
 ```
 
-
 Requires Node.js ≥ 18. Zero runtime dependencies — AES and SHA-256 come from
 `node:crypto`. Ships ESM and CommonJS builds with full TypeScript types.
 

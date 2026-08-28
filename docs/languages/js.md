@@ -13,7 +13,6 @@ Source of truth: [`js/` on GitHub](https://github.com/algorix-hq/dealcode/tree/m
 npm install dealcode
 ```
 
-
 ## Minimal example
 
 ```ts

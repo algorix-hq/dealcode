@@ -13,7 +13,6 @@
 pip install dealcode
 ```
 
-
 ## 최소 예제
 
 ```python

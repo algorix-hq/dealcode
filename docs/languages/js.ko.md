@@ -13,7 +13,6 @@ TypeScript 타입을 제공합니다.
 npm install dealcode
 ```
 
-
 ## 최소 예제
 
 ```ts
