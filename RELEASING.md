@@ -6,8 +6,10 @@ package to the same version, even languages without changes. Version
 locations: `python/pyproject.toml` + `python/src/dealcode/__init__.py`,
 `js/package.json` **and** `js/package-lock.json` (bump with
 `cd js && npm version X.Y.Z --no-git-tag-version`, which updates both),
-`rust/Cargo.toml`, `java/pom.xml`, `c/include/dealcode.h`
-(`DEALCODE_VERSION`), `cpp/CMakeLists.txt` (`project(... VERSION ...)`).
+`rust/Cargo.toml` **and** `rust/Cargo.lock` (refresh with
+`cd rust && cargo update -w` after bumping the manifest), `java/pom.xml`,
+`c/include/dealcode.h` (`DEALCODE_VERSION`), `cpp/CMakeLists.txt`
+(`project(... VERSION ...)`).
 Go has no embedded version — it is versioned by the `go/vX.Y.Z` tag.
 
 ## Release infrastructure (already set up — reference)
@@ -35,7 +37,7 @@ registry publishes from GitHub Actions. What exists and where:
   2028-08-27**. Public key lives on keyserver.ubuntu.com and
   keys.openpgp.org (Central verifies against them); the private key and
   its revocation certificate are backed up in the maintainer's password
-  manager. Before expiry: `gpg --edit-key 84DB98F2` → `expire`, re-upload
+  manager. Before expiry: `gpg --edit-key 84DB98F2` → `expire` → `save`, re-upload
   the public key to both keyservers, update the environment secret.
   **If the key is compromised** (not just expiring): import the revocation
   certificate from the password manager (`gpg --import revoke.rev`) and
@@ -69,7 +71,8 @@ the maintainer's password manager): PyPI, npm, crates.io (GitHub-linked),
 and Sonatype Central Portal (owns the `io.algorix` namespace) are all
 individual maintainer accounts today — Trusted Publishing removes tokens
 from releases, but re-registering publishers, yanking, and deprecating
-still require these accounts.
+still require these accounts. GitHub org/repo admin access (environments,
+secrets, rulesets, Pages) is the fifth account in that list.
 
 ## If a published release is broken
 
@@ -91,7 +94,7 @@ Prefer shipping a fixed X.Y.Z+1 immediately; per registry:
 1. Update `CHANGELOG.md`: retitle the unreleased section to the version and
    date; start a new unreleased section.
 2. Update user-facing version strings beyond the seven package files:
-   `grep -rn '<old-version>' README.md README.ko.md docs java/README.md
+   `grep -rnF '<old-version>' README.md README.ko.md docs java/README.md
    c/README.md cpp/README.md` — Maven install snippets, the cpp
    FetchContent `GIT_TAG`, the C header prose, and the "vX.Y.Z is live"
    release callouts all hard-code the version.

@@ -6,7 +6,7 @@
 # environment crates-io.
 #
 # Trigger: MANUAL ONLY (workflow_dispatch) — run from the Actions tab or
-# `gh workflow run publish-crates.yml` after the release commit is on main.
+# `gh workflow run publish-crates.yml --ref vX.Y.Z` (always dispatch against the tag).
 name: publish-crates
 
 on:

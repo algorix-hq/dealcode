@@ -7,7 +7,7 @@
 # manually with `npm publish` from a logged-in machine.)
 #
 # Trigger: MANUAL ONLY (workflow_dispatch) — run from the Actions tab or
-# `gh workflow run publish-npm.yml` after the release commit is on main.
+# `gh workflow run publish-npm.yml --ref vX.Y.Z` (always dispatch against the tag).
 name: publish-npm
 
 on:

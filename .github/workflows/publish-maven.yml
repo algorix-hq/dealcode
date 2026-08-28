@@ -10,7 +10,7 @@
 # https://central.sonatype.com/publishing/deployments
 #
 # Trigger: MANUAL ONLY (workflow_dispatch) — run from the Actions tab or
-# `gh workflow run publish-maven.yml` after the release commit is on main.
+# `gh workflow run publish-maven.yml --ref vX.Y.Z` (always dispatch against the tag).
 name: publish-maven
 
 on:
