@@ -121,6 +121,31 @@ invisible — codes look random anyway.
 If the `UNIQUE` constraint on `code` ever fires, do not retry: it means the
 key/config changed for an existing namespace. Investigate.
 
+## Fixed-length cycling mode
+
+For code shapes that must **never grow** (airline-PNR-style), `NewCycling`
+builds a codec whose codes are always exactly `Length` characters. The
+counter space is spent in cycles of `Capacity() = radix^Length` codes each;
+when a cycle is exhausted, the next cycle refills the *same* code space
+through a different permutation (SPEC §11).
+
+```go
+pnr, err := dealcode.NewCycling(dealcode.CyclingConfig{
+	KeyString: key, Alphabet: "crockford", Length: 6, Domain: "bookings",
+})
+// counter n belongs to cycle n / pnr.Capacity()
+code, _ := pnr.Encode(n)          // always exactly 6 characters
+cycle, _ := pnr.CycleOf(n)        // store this next to the code!
+m, _ := pnr.Decode(code, cycle)   // m == n; the cycle is required
+```
+
+**Operational rule:** codes *repeat* across cycles by design, so a global
+`UNIQUE(code)` index spanning cycles WILL fire — scope uniqueness as
+`UNIQUE(cycle, code)`, keep at most one cycle's codes live at a time per
+scope (retire or expire cycle `e` before issuing from `e+1`), and persist
+each live code's cycle (or the currently active cycle): `Decode` needs it,
+and the library cannot recover the cycle from the code string.
+
 ## Concurrency & performance
 
 A `Codec` is immutable and safe for concurrent use by multiple goroutines

@@ -7,6 +7,8 @@
  *  - buffer, range, and config error behaviour
  *  - large roundtrip loops across stage boundaries, including configs where
  *    radix^max_length is exactly 2^128
+ *  - fixed-length cycling mode (SPEC section 11): every case in
+ *    testvectors/v1c.json plus permutation/boundary/namespace behaviour
  */
 
 #include <inttypes.h>
@@ -913,6 +915,622 @@ static void test_null_handles(void)
 }
 
 
+/* ---------------------------------------------------------------------- */
+/* Fixed-length cycling mode (SPEC section 11)                            */
+/* ---------------------------------------------------------------------- */
+
+static dealcode_cycle_t *make_cycle_codec(const tv_cycle_config_t *cfg,
+                                          dealcode_err_t *err_out)
+{
+    uint8_t key[64];
+    dealcode_cycle_config_t c = { 0 };
+    if (cfg->key_hex != NULL) {
+        const size_t key_len = hex_decode(cfg->key_hex, key, sizeof key);
+        if (key_len == (size_t)-1) {
+            *err_out = DEALCODE_ERR_CONFIG;
+            return NULL;
+        }
+        c.key = key;
+        c.key_len = key_len;
+    } else {
+        c.key_string = cfg->key_string;
+    }
+    c.alphabet = cfg->alphabet;
+    c.length = cfg->length;
+    c.domain = cfg->domain;
+
+    dealcode_cycle_t *dc = NULL;
+    *err_out = dealcode_cycle_new(&c, &dc);
+    return dc;
+}
+
+static void test_v1c_vectors(void)
+{
+    for (size_t i = 0; i < TV_V1C_COUNT; i++) {
+        const tv_cycle_config_t *cfg = &TV_V1C[i];
+        dealcode_err_t err;
+        dealcode_cycle_t *dc = make_cycle_codec(cfg, &err);
+        CHECK(dc != NULL, "v1c %s: dealcode_cycle_new: %s", cfg->name,
+              dealcode_strerror(err));
+        if (dc == NULL)
+            continue;
+
+        CHECK(dealcode_cycle_capacity(dc) == cfg->capacity,
+              "v1c %s: capacity %" PRIu64 ", want %" PRIu64, cfg->name,
+              dealcode_cycle_capacity(dc), cfg->capacity);
+        CHECK(dealcode_cycle_max_cycle(dc) == cfg->max_cycle,
+              "v1c %s: max_cycle %" PRIu64 ", want %" PRIu64, cfg->name,
+              dealcode_cycle_max_cycle(dc), cfg->max_cycle);
+        CHECK(dealcode_cycle_length(dc) == cfg->length,
+              "v1c %s: length accessor", cfg->name);
+        CHECK((size_t)dealcode_cycle_radix(dc) ==
+                  strlen(dealcode_cycle_alphabet(dc)),
+              "v1c %s: radix/alphabet accessors", cfg->name);
+
+        for (size_t j = 0; j < cfg->n_vectors; j++) {
+            const tv_pair_t *tv = &cfg->vectors[j];
+            char code[DEALCODE_MAX_CODE_SIZE];
+            err = dealcode_cycle_encode(dc, tv->n, code, sizeof code);
+            CHECK(err == DEALCODE_OK, "v1c %s: encode(%" PRIu64 "): %s",
+                  cfg->name, tv->n, dealcode_strerror(err));
+            CHECK(err == DEALCODE_OK && strcmp(code, tv->code) == 0,
+                  "v1c %s: encode(%" PRIu64 ") = \"%s\", want \"%s\"",
+                  cfg->name, tv->n, code, tv->code);
+
+            uint64_t n = UINT64_MAX;
+            err = dealcode_cycle_decode(dc, tv->code, tv->n / cfg->capacity,
+                                        &n);
+            CHECK(err == DEALCODE_OK && n == tv->n,
+                  "v1c %s: decode(\"%s\", %" PRIu64 ") = %" PRIu64
+                  " (%s), want %" PRIu64,
+                  cfg->name, tv->code, tv->n / cfg->capacity, n,
+                  dealcode_strerror(err), tv->n);
+        }
+
+        for (size_t j = 0; j < cfg->n_invalid_codes; j++) {
+            uint64_t n = 0;
+            err = dealcode_cycle_decode(dc, cfg->invalid_codes[j].code,
+                                        cfg->invalid_codes[j].cycle, &n);
+            CHECK(err == DEALCODE_ERR_INVALID_CODE,
+                  "v1c %s: decode(\"%s\", %" PRIu64
+                  ") = %s, want invalid-code",
+                  cfg->name, cfg->invalid_codes[j].code,
+                  cfg->invalid_codes[j].cycle, dealcode_strerror(err));
+        }
+
+        for (size_t j = 0; j < cfg->n_normalize; j++) {
+            uint64_t n = UINT64_MAX;
+            err = dealcode_cycle_decode(dc, cfg->normalize[j].input,
+                                        cfg->normalize[j].cycle, &n);
+            CHECK(err == DEALCODE_OK && n == cfg->normalize[j].n,
+                  "v1c %s: normalize decode(\"%s\", %" PRIu64 ") = %" PRIu64
+                  " (%s), want %" PRIu64,
+                  cfg->name, cfg->normalize[j].input, cfg->normalize[j].cycle,
+                  n, dealcode_strerror(err), cfg->normalize[j].n);
+        }
+
+        for (size_t j = 0; j < cfg->n_range_counters; j++) {
+            char code[DEALCODE_MAX_CODE_SIZE];
+            err = dealcode_cycle_encode(dc, cfg->range_counters[j], code,
+                                        sizeof code);
+            CHECK(err == DEALCODE_ERR_RANGE,
+                  "v1c %s: encode(%" PRIu64 ") = %s, want range error",
+                  cfg->name, cfg->range_counters[j], dealcode_strerror(err));
+        }
+
+        /* invalid cycles ("-1" is unrepresentable in uint64_t and was
+         * skipped by the generator; max_cycle + 1 is always present) */
+        char probe[DEALCODE_MAX_CODE_SIZE];
+        CHECK(dealcode_cycle_encode(dc, 0, probe, sizeof probe) ==
+                  DEALCODE_OK,
+              "v1c %s: probe encode", cfg->name);
+        for (size_t j = 0; j < cfg->n_invalid_cycles; j++) {
+            uint64_t n = 0;
+            err = dealcode_cycle_decode(dc, probe, cfg->invalid_cycles[j],
+                                        &n);
+            CHECK(err == DEALCODE_ERR_RANGE,
+                  "v1c %s: decode(probe, %" PRIu64 ") = %s, want range error",
+                  cfg->name, cfg->invalid_cycles[j], dealcode_strerror(err));
+        }
+        /* belt and braces: max_cycle + 1 must be rejected even if the
+         * vector file changes (max_cycle < 2^63, so +1 never wraps) */
+        {
+            uint64_t n = 0;
+            err = dealcode_cycle_decode(dc, probe,
+                                        dealcode_cycle_max_cycle(dc) + 1, &n);
+            CHECK(err == DEALCODE_ERR_RANGE,
+                  "v1c %s: decode(probe, max_cycle + 1) = %s, want range "
+                  "error",
+                  cfg->name, dealcode_strerror(err));
+        }
+
+        dealcode_cycle_free(dc);
+    }
+}
+
+static void test_v1c_invalid_configs(void)
+{
+    for (size_t i = 0; i < TV_V1C_INVALID_CONFIG_COUNT; i++) {
+        const tv_cycle_invalid_config_t *tv = &TV_V1C_INVALID_CONFIGS[i];
+        uint8_t key[64];
+        dealcode_cycle_config_t c = { 0 };
+        if (tv->key_hex != NULL) {
+            const size_t key_len = hex_decode(tv->key_hex, key, sizeof key);
+            CHECK(key_len != (size_t)-1, "v1c invalid-config %s: bad key hex",
+                  tv->name);
+            if (key_len == (size_t)-1)
+                continue;
+            c.key = key;
+            c.key_len = key_len;
+        } else {
+            c.key_string = tv->key_string;
+        }
+        c.alphabet = tv->alphabet;
+        c.length = tv->length;
+        c.domain = tv->domain;
+
+        dealcode_cycle_t *dc = NULL;
+        dealcode_err_t err = dealcode_cycle_new(&c, &dc);
+        CHECK(err == DEALCODE_ERR_CONFIG && dc == NULL,
+              "v1c invalid-config %s: got %s, want config error", tv->name,
+              dealcode_strerror(err));
+
+        /* the _ex form must agree, and must explain itself */
+        char errbuf[DEALCODE_ERRBUF_SIZE];
+        err = dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf);
+        CHECK(err == DEALCODE_ERR_CONFIG && dc == NULL,
+              "v1c invalid-config %s: _ex got %s, want config error",
+              tv->name, dealcode_strerror(err));
+        CHECK(errbuf[0] != '\0',
+              "v1c invalid-config %s: _ex must write a diagnostic", tv->name);
+        dealcode_cycle_free(dc);
+    }
+}
+
+/* The cycling constructor reuses the plain codec's guards verbatim, plus
+ * its own length constraints; check the exact diagnostics. */
+static void test_cycle_config_errors(void)
+{
+    dealcode_cycle_config_t c;
+    dealcode_cycle_t *dc = NULL;
+    char errbuf[DEALCODE_ERRBUF_SIZE];
+
+    /* success: OK, handle set, errbuf cleared to "" */
+    memset(&c, 0, sizeof c);
+    c.key_string = "cycle-detail-key";
+    memset(errbuf, 'x', sizeof errbuf);
+    CHECK(dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_OK &&
+              dc != NULL,
+          "cycle new_ex: success");
+    CHECK(errbuf[0] == '\0', "cycle new_ex: errbuf empty on success");
+    CHECK(dealcode_cycle_length(dc) == 6, "cycle: length 0 defaults to 6");
+    dealcode_cycle_free(dc);
+    dc = NULL;
+
+    /* guard A: preset-name-in-disguise alphabet, same message as plain */
+    memset(&c, 0, sizeof c);
+    c.key_string = "guard-key";
+    c.alphabet = "HEX";
+    c.length = 6;
+    CHECK(dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              dc == NULL,
+          "cycle guard A: \"HEX\" rejected");
+    CHECK(strcmp(errbuf,
+                 "custom alphabet \"HEX\" matches the preset name \"hex\" — "
+                 "pass \"hex\" for the preset, or a genuinely custom "
+                 "alphabet") == 0,
+          "cycle guard A: diagnostic, got \"%s\"", errbuf);
+
+    /* guard B: preset-name string key, same message as plain */
+    memset(&c, 0, sizeof c);
+    c.key_string = "crockford";
+    c.length = 6;
+    CHECK(dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              dc == NULL,
+          "cycle guard B: string key \"crockford\" rejected");
+    CHECK(strcmp(errbuf,
+                 "string key \"crockford\" is a preset alphabet name — did "
+                 "you swap the key and alphabet fields?") == 0,
+          "cycle guard B: diagnostic, got \"%s\"", errbuf);
+
+    /* byte keys spelling a preset name are unaffected (as in plain) */
+    memset(&c, 0, sizeof c);
+    c.key = (const uint8_t *)"crockford";
+    c.key_len = 9;
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_OK,
+          "cycle guard B: byte key \"crockford\" accepted");
+    dealcode_cycle_free(dc);
+    dc = NULL;
+
+    /* length constraints, checked before any power */
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.length = 1;
+    CHECK(dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "length 1 < 2") == 0,
+          "cycle: length 1 message, got \"%s\"", errbuf);
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.length = -7;
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "cycle: negative length rejected");
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.length = 129;
+    CHECK(dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "length 129 > 128") == 0,
+          "cycle: length 129 message, got \"%s\"", errbuf);
+
+    /* radix^length < 100 */
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.alphabet = "abcdefghi"; /* radix 9: 9^2 = 81 < 100 */
+    c.length = 2;
+    CHECK(dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "radix^length (9^2) is below FF1's minimum "
+                             "code space of 100") == 0,
+          "cycle: small code space message, got \"%s\"", errbuf);
+
+    /* radix^length > 2^63 (16^16 = 2^64) */
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.length = 16;
+    CHECK(dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf,
+                     "radix^length (16^16) exceeds 2^63 in cycling mode — a "
+                     "cycle must be completable; use min_length == "
+                     "max_length for larger fixed spaces") == 0,
+          "cycle: over-2^63 message, got \"%s\"", errbuf);
+
+    /* oversized domain: same message as plain */
+    {
+        static char domain[300];
+        memset(domain, 'a', 256);
+        domain[256] = '\0';
+        memset(&c, 0, sizeof c);
+        c.key_string = "k";
+        c.domain = domain;
+        CHECK(dealcode_cycle_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                      DEALCODE_ERR_CONFIG &&
+                  strcmp(errbuf,
+                         "domain exceeds 255 UTF-8 bytes (got 256)") == 0,
+              "cycle: domain message, got \"%s\"", errbuf);
+    }
+
+    /* invalid UTF-8 domain and key, as in plain */
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.domain = "\xff\xfe";
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "cycle: invalid UTF-8 domain rejected");
+    memset(&c, 0, sizeof c);
+    c.key_string = "\xc0\xaf";
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "cycle: invalid UTF-8 key string rejected");
+
+    /* boundary that must SUCCEED: radix^length == 2^63 exactly */
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.alphabet = "01234567";
+    c.length = 21; /* 8^21 == 2^63 */
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_OK,
+          "cycle: radix^length == 2^63 must be accepted");
+    if (dc != NULL) {
+        CHECK(dealcode_cycle_capacity(dc) == (UINT64_C(1) << 63),
+              "cycle: capacity == 2^63");
+        CHECK(dealcode_cycle_max_cycle(dc) == 0, "cycle: max_cycle == 0");
+    }
+    dealcode_cycle_free(dc);
+    dc = NULL;
+
+    /* boundary that must SUCCEED: radix^length == 100 exactly */
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.alphabet = "dec";
+    c.length = 2;
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_OK,
+          "cycle: radix^length == 100 must be accepted");
+    dealcode_cycle_free(dc);
+
+    /* NULL argument handling */
+    {
+        dealcode_cycle_t *out = NULL;
+        CHECK(dealcode_cycle_new(NULL, &out) == DEALCODE_ERR_CONFIG,
+              "cycle: NULL cfg");
+        memset(&c, 0, sizeof c);
+        c.key_string = "k";
+        CHECK(dealcode_cycle_new(&c, NULL) == DEALCODE_ERR_CONFIG,
+              "cycle: NULL out");
+    }
+}
+
+/* SPEC section 11.3 behaviour: within one cycle codes are a permutation of
+ * the whole fixed-length space; across cycles the same strings recur in a
+ * different order. */
+static void test_cycle_permutation_behaviour(void)
+{
+    dealcode_cycle_config_t c = { 0 };
+    c.key_string = "cycle-behaviour-key";
+    c.alphabet = "dec";
+    c.length = 2; /* capacity 100 */
+    dealcode_cycle_t *dc = NULL;
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_OK, "perm: new");
+    if (dc == NULL)
+        return;
+    CHECK(dealcode_cycle_capacity(dc) == 100, "perm: capacity 100");
+
+    /* codes[e][v]: the full 100-code set of cycles 0, 1, 2 */
+    static char codes[3][100][3];
+    for (uint64_t e = 0; e < 3; e++) {
+        int seen[100] = { 0 };
+        for (uint64_t v = 0; v < 100; v++) {
+            const uint64_t n = e * 100 + v;
+            CHECK(dealcode_cycle_encode(dc, n, codes[e][v],
+                                        sizeof codes[e][v]) == DEALCODE_OK,
+                  "perm: encode(%" PRIu64 ")", n);
+            /* each 2-char dec code maps to one slot in [0, 100) */
+            const int slot = (codes[e][v][0] - '0') * 10 +
+                             (codes[e][v][1] - '0');
+            CHECK(slot >= 0 && slot < 100 && !seen[slot],
+                  "perm: cycle %" PRIu64 " must issue distinct codes", e);
+            seen[slot] = 1;
+
+            uint64_t back = UINT64_MAX;
+            CHECK(dealcode_cycle_decode(dc, codes[e][v], e, &back) ==
+                          DEALCODE_OK &&
+                      back == n,
+                  "perm: decode(\"%s\", %" PRIu64 ")", codes[e][v], e);
+        }
+        /* all 100 slots seen => this cycle covered the full space */
+        int covered = 1;
+        for (int s = 0; s < 100; s++)
+            covered = covered && seen[s];
+        CHECK(covered, "perm: cycle %" PRIu64 " covers the full space", e);
+    }
+
+    /* same set every cycle (checked via full coverage above), different
+     * order between any two cycles */
+    int diff01 = 0, diff12 = 0, diff02 = 0;
+    for (int v = 0; v < 100; v++) {
+        diff01 = diff01 || strcmp(codes[0][v], codes[1][v]) != 0;
+        diff12 = diff12 || strcmp(codes[1][v], codes[2][v]) != 0;
+        diff02 = diff02 || strcmp(codes[0][v], codes[2][v]) != 0;
+    }
+    CHECK(diff01 && diff12 && diff02,
+          "perm: cycles must refill the space in different orders");
+
+    /* wrong cycle: decodes fine (same charset/length) but to a different
+     * counter — the documented ambiguity; cycle is context */
+    uint64_t back = UINT64_MAX;
+    CHECK(dealcode_cycle_decode(dc, codes[0][7], 0, &back) == DEALCODE_OK &&
+              back == 7,
+          "perm: right cycle");
+    CHECK(dealcode_cycle_decode(dc, codes[0][7], 1, &back) == DEALCODE_OK &&
+              back != 7 && back >= 100 && back < 200,
+          "perm: wrong cycle decodes into that cycle's counter range");
+
+    dealcode_cycle_free(dc);
+}
+
+static void test_cycle_boundaries(void)
+{
+    const uint64_t top = ((UINT64_C(1) << 63) - 1);
+
+    /* dec length 2: counter-space top lives in the final partial cycle */
+    {
+        dealcode_cycle_config_t c = { 0 };
+        c.key_string = "cycle-boundary-key";
+        c.alphabet = "dec";
+        c.length = 2;
+        dealcode_cycle_t *dc = NULL;
+        CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_OK, "boundary: new");
+        if (dc == NULL)
+            return;
+
+        char code[DEALCODE_MAX_CODE_SIZE];
+        CHECK(dealcode_cycle_encode(dc, top, code, sizeof code) ==
+                  DEALCODE_OK,
+              "boundary: encode(2^63 - 1)");
+        uint64_t back = 0;
+        CHECK(dealcode_cycle_decode(dc, code, top / 100, &back) ==
+                      DEALCODE_OK &&
+                  back == top,
+              "boundary: 2^63 - 1 roundtrip");
+        CHECK(dealcode_cycle_encode(dc, UINT64_C(1) << 63, code,
+                                    sizeof code) == DEALCODE_ERR_RANGE,
+              "boundary: encode(2^63) rejected");
+        CHECK(dealcode_cycle_encode(dc, UINT64_MAX, code, sizeof code) ==
+                  DEALCODE_ERR_RANGE,
+              "boundary: encode(UINT64_MAX) rejected");
+
+        /* final partial cycle: max_cycle holds only counters up to top; the
+         * other codes of that cycle must be rejected. 2^63 - 1 = ...07, so
+         * v in [8, 100) of cycle max_cycle maps past the counter space:
+         * every code except the 8 valid ones must be invalid. */
+        const uint64_t last = dealcode_cycle_max_cycle(dc);
+        int rejected = 0, accepted = 0;
+        for (int d1 = 0; d1 < 10 && rejected < 3; d1++) {
+            for (int d2 = 0; d2 < 10 && rejected < 3; d2++) {
+                char probe[3] = { (char)('0' + d1), (char)('0' + d2), '\0' };
+                uint64_t n = 0;
+                const dealcode_err_t err =
+                    dealcode_cycle_decode(dc, probe, last, &n);
+                if (err == DEALCODE_OK) {
+                    accepted++;
+                    CHECK(n >= last * 100 && n <= top,
+                          "boundary: accepted counter in range");
+                } else {
+                    CHECK(err == DEALCODE_ERR_INVALID_CODE,
+                          "boundary: partial-cycle rejection is "
+                          "invalid-code, got %s",
+                          dealcode_strerror(err));
+                    rejected++;
+                }
+            }
+        }
+        CHECK(rejected > 0, "boundary: final partial cycle rejects codes");
+        dealcode_cycle_free(dc);
+    }
+
+    /* octal length 21: capacity exactly 2^63, a single cycle */
+    {
+        dealcode_cycle_config_t c = { 0 };
+        c.key_string = "cycle-boundary-key";
+        c.alphabet = "01234567";
+        c.length = 21;
+        dealcode_cycle_t *dc = NULL;
+        CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_OK,
+              "boundary: octal new");
+        if (dc == NULL)
+            return;
+        CHECK(dealcode_cycle_capacity(dc) == (UINT64_C(1) << 63),
+              "boundary: octal capacity 2^63");
+        CHECK(dealcode_cycle_max_cycle(dc) == 0,
+              "boundary: octal max_cycle 0");
+
+        char code[DEALCODE_MAX_CODE_SIZE];
+        uint64_t back = 0;
+        CHECK(dealcode_cycle_encode(dc, top, code, sizeof code) ==
+                      DEALCODE_OK &&
+                  strlen(code) == 21 &&
+                  dealcode_cycle_decode(dc, code, 0, &back) == DEALCODE_OK &&
+                  back == top,
+              "boundary: octal 2^63 - 1 roundtrip");
+        CHECK(dealcode_cycle_encode(dc, 0, code, sizeof code) ==
+                      DEALCODE_OK &&
+                  dealcode_cycle_decode(dc, code, 0, &back) == DEALCODE_OK &&
+                  back == 0,
+              "boundary: octal 0 roundtrip");
+        CHECK(dealcode_cycle_decode(dc, code, 1, &back) ==
+                  DEALCODE_ERR_RANGE,
+              "boundary: octal cycle 1 out of range");
+        dealcode_cycle_free(dc);
+    }
+}
+
+/* Cycling and plain codecs live in disjoint tweak namespaces: the same key,
+ * alphabet, domain and fixed length must still permute differently. */
+static void test_cycle_namespace_separation(void)
+{
+    dealcode_config_t pc = { 0 };
+    pc.key_string = "namespace-key";
+    pc.alphabet = "dec";
+    pc.min_length = 6;
+    pc.max_length = 6;
+    pc.domain = "orders";
+    dealcode_t *plain = NULL;
+    CHECK(dealcode_new(&pc, &plain) == DEALCODE_OK, "namespace: plain new");
+
+    dealcode_cycle_config_t cc = { 0 };
+    cc.key_string = "namespace-key";
+    cc.alphabet = "dec";
+    cc.length = 6;
+    cc.domain = "orders";
+    dealcode_cycle_t *cyc = NULL;
+    CHECK(dealcode_cycle_new(&cc, &cyc) == DEALCODE_OK,
+          "namespace: cycle new");
+
+    if (plain != NULL && cyc != NULL) {
+        int all_equal = 1;
+        for (uint64_t n = 0; n < 32; n++) {
+            char a[DEALCODE_MAX_CODE_SIZE], b[DEALCODE_MAX_CODE_SIZE];
+            CHECK(dealcode_encode(plain, n, a, sizeof a) == DEALCODE_OK &&
+                      dealcode_cycle_encode(cyc, n, b, sizeof b) ==
+                          DEALCODE_OK,
+                  "namespace: encode");
+            if (strcmp(a, b) != 0)
+                all_equal = 0;
+        }
+        CHECK(!all_equal,
+              "namespace: v1 and v1c tweaks must permute differently");
+    }
+    dealcode_free(plain);
+    dealcode_cycle_free(cyc);
+}
+
+/* Longest possible cycling tweak: 255-byte domain and the largest cycle
+ * number (17 digits at capacity 100) — exercises the 288-byte tweak path
+ * end to end under ASan. */
+static void test_cycle_max_tweak(void)
+{
+    static char domain[256];
+    memset(domain, 'd', 255);
+    domain[255] = '\0';
+
+    dealcode_cycle_config_t c = { 0 };
+    c.key_string = "max-tweak-key";
+    c.alphabet = "dec";
+    c.length = 2;
+    c.domain = domain;
+    dealcode_cycle_t *dc = NULL;
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_OK, "max-tweak: new");
+    if (dc == NULL)
+        return;
+
+    const uint64_t top = (UINT64_C(1) << 63) - 1;
+    char code[DEALCODE_MAX_CODE_SIZE];
+    uint64_t back = 0;
+    CHECK(dealcode_cycle_encode(dc, top, code, sizeof code) == DEALCODE_OK &&
+              dealcode_cycle_decode(dc, code, top / 100, &back) ==
+                  DEALCODE_OK &&
+              back == top,
+          "max-tweak: roundtrip at the largest cycle number");
+    dealcode_cycle_free(dc);
+}
+
+static void test_cycle_null_and_buffer(void)
+{
+    char code[DEALCODE_MAX_CODE_SIZE];
+    uint64_t n;
+    CHECK(dealcode_cycle_capacity(NULL) == 0, "cycle null: capacity");
+    CHECK(dealcode_cycle_max_cycle(NULL) == 0, "cycle null: max_cycle");
+    CHECK(dealcode_cycle_length(NULL) == 0, "cycle null: length");
+    CHECK(dealcode_cycle_radix(NULL) == 0, "cycle null: radix");
+    CHECK(dealcode_cycle_alphabet(NULL) == NULL, "cycle null: alphabet");
+    CHECK(dealcode_cycle_encode(NULL, 0, code, sizeof code) ==
+              DEALCODE_ERR_CONFIG,
+          "cycle null: encode");
+    CHECK(dealcode_cycle_decode(NULL, "abc", 0, &n) == DEALCODE_ERR_CONFIG,
+          "cycle null: decode");
+    dealcode_cycle_free(NULL); /* must be a no-op */
+
+    dealcode_cycle_config_t c = { 0 };
+    c.key_string = "cycle-buffer-key";
+    dealcode_cycle_t *dc = NULL;
+    CHECK(dealcode_cycle_new(&c, &dc) == DEALCODE_OK, "cycle buffer: new");
+    if (dc == NULL)
+        return;
+    CHECK(dealcode_cycle_decode(dc, NULL, 0, &n) ==
+              DEALCODE_ERR_INVALID_CODE,
+          "cycle null: decode NULL code");
+    CHECK(dealcode_cycle_decode(dc, "c4334d", 0, NULL) ==
+              DEALCODE_ERR_CONFIG,
+          "cycle null: decode NULL n_out");
+
+    /* buffer errors: 6-char code needs 7 bytes; nothing written on error */
+    memset(code, 'Z', sizeof code);
+    CHECK(dealcode_cycle_encode(dc, 0, code, 6) == DEALCODE_ERR_BUFFER,
+          "cycle buffer: size 6 too small");
+    CHECK(code[0] == 'Z', "cycle buffer: nothing written on ERR_BUFFER");
+    CHECK(dealcode_cycle_encode(dc, 0, code, 0) == DEALCODE_ERR_BUFFER,
+          "cycle buffer: size 0");
+    CHECK(dealcode_cycle_encode(dc, 0, NULL, 64) == DEALCODE_ERR_BUFFER,
+          "cycle buffer: NULL out");
+    CHECK(dealcode_cycle_encode(dc, 0, code, 7) == DEALCODE_OK &&
+              strlen(code) == 6,
+          "cycle buffer: exact size succeeds");
+    dealcode_cycle_free(dc);
+}
+
 /* Regression tests for the QA round-2 findings (SPEC section 2.1): string
  * key material and domains must be valid UTF-8 (invalid sequences and
  * UTF-8-encoded surrogates rejected, never silently reinterpreted). */
@@ -972,6 +1590,14 @@ int main(void)
     test_strerror();
     test_null_handles();
     test_utf8_validation();
+    test_v1c_vectors();
+    test_v1c_invalid_configs();
+    test_cycle_config_errors();
+    test_cycle_permutation_behaviour();
+    test_cycle_boundaries();
+    test_cycle_namespace_separation();
+    test_cycle_max_tweak();
+    test_cycle_null_and_buffer();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     if (g_failures != 0) {

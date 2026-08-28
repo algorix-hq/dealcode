@@ -11,7 +11,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "python" / "src"))
 
-from dealcode import ConfigError, Dealcode, InvalidCodeError, RangeError  # noqa: E402
+from dealcode import (  # noqa: E402
+    ConfigError,
+    CyclingDealcode,
+    Dealcode,
+    InvalidCodeError,
+    RangeError,
+)
 
 COUNTER_BOUND = 2**63
 
@@ -87,6 +93,159 @@ INVALID_CONFIGS = [
 # strings; a language whose counter type cannot even represent the value may
 # treat unrepresentability as the rejection).
 RANGE_COUNTERS = ["-1", str(COUNTER_BOUND), str(2**64)]
+
+# --- fixed-length cycling mode (SPEC §11, testvectors/v1c.json) -------------
+
+CYCLE_CONFIGS = [
+    dict(name="crockford-pnr6", key=KEY128, alphabet="crockford", length=6, domain=""),
+    dict(name="dec-6", key=KEY256, alphabet="dec", length=6, domain="bookings"),
+    dict(name="hex-4-small", key=KEY192, alphabet="hex", length=4, domain=""),
+    dict(name="base62-8", key=KEY128, alphabet="base62", length=8, domain=""),
+    dict(name="dec-2-many-cycles", key=KEY_STR, alphabet="dec", length=2, domain=""),
+    # capacity exactly 2^63: max_cycle == 0, a single never-completed cycle
+    dict(name="octal-21-single-cycle", key=KEY128, alphabet="01234567", length=21, domain=""),
+    dict(name="korean-domain", key=KEY128, alphabet="hex", length=6, domain="예약·코드"),
+]
+
+CYCLE_INVALID_CONFIGS = [
+    dict(name="length-one", key_hex=KEY128.hex(), alphabet="dec", length=1),
+    dict(name="codespace-under-100", key_hex=KEY128.hex(), custom_alphabet="abcdefghi", length=2),
+    dict(name="capacity-over-2pow63", key_hex=KEY128.hex(), alphabet="hex", length=16),
+    dict(name="preset-lookalike-alphabet", key_hex=KEY128.hex(), custom_alphabet="HEX", length=6),
+    dict(name="preset-name-as-key", key_string="crockford", alphabet="hex", length=6),
+    dict(name="empty-key", key_string="", alphabet="hex", length=6),
+    dict(name="domain-256-bytes", key_hex=KEY128.hex(), alphabet="hex", length=6, domain="x" * 256),
+]
+
+
+def cycle_counters_for(codec):
+    cap, top = codec.capacity, COUNTER_BOUND
+    ns = {0, 1, 2, 7, 42, cap - 1}
+    if codec.max_cycle >= 2:
+        ns.update({cap, cap + 1, 2 * cap - 1, 2 * cap, 2 * cap + 7})
+    if codec.max_cycle >= 12345:
+        ns.update(12345 * cap + s for s in (0, 1, cap - 1))
+    ns.add(top - 1)  # final (possibly partial) cycle
+    ns.update(samples(0, min(3 * cap, top), 4))
+    ns.update(samples(0, top, 3))
+    return sorted(n for n in ns if 0 <= n < top)
+
+
+def _cycle_encrypt_raw(codec, cycle: int, v: int) -> str:
+    numerals = codec._to_numerals(v)
+    ct = codec._ff1.encrypt(codec._tweak_for(cycle), numerals)
+    chars = codec.alphabet
+    return "".join(chars[x] for x in ct)
+
+
+def cycle_invalid_codes_for(codec) -> list:
+    chars, L = codec.alphabet, codec.length
+    bad = [
+        {"cycle": "0", "code": chars[0] * (L - 1)},   # too short
+        {"cycle": "0", "code": chars[0] * (L + 1)},   # too long
+        {"cycle": "0", "code": ""},
+        {"cycle": "0", "code": " " + chars[0] * (L - 1)},
+        {"cycle": "0", "code": chars[0] * (L - 1) + "\n"},
+    ]
+    outside = next(
+        (
+            chr(c)
+            for c in range(0x21, 0x7F)
+            if chr(c) not in set(chars) and chr(c) not in '"\\'
+        ),
+        None,
+    )
+    if outside is not None:
+        bad.append({"cycle": "0", "code": outside + chars[0] * (L - 1)})
+    # a code whose counter would exceed 2^63 in the final partial cycle
+    e_last = codec.max_cycle
+    first_over = COUNTER_BOUND - e_last * codec.capacity
+    if first_over < codec.capacity:
+        for v in {first_over, codec.capacity - 1}:
+            bad.append({"cycle": str(e_last), "code": _cycle_encrypt_raw(codec, e_last, v)})
+    for entry in bad:
+        try:
+            codec.decode(entry["code"], int(entry["cycle"]))
+        except InvalidCodeError:
+            pass
+        else:
+            raise AssertionError(f"invalid cycle code accepted: {entry}")
+    return bad
+
+
+def cycle_normalize_for(codec, name: str):
+    cases = []
+    probe = 123456 % codec.capacity
+    if name in ("hex", "base36"):
+        code = codec.encode(probe)
+        if code != code.upper():
+            cases.append({"cycle": "0", "input": code.upper(), "n": str(probe)})
+    elif name == "crockford":
+        code = codec.encode(probe)
+        cases.append(
+            {"cycle": "0", "input": code.lower().replace("0", "o").replace("1", "i"), "n": str(probe)}
+        )
+    return cases
+
+
+def generate_v1c() -> dict:
+    out = {"spec": "dealcode/v1c", "configs": []}
+    for c in CYCLE_CONFIGS:
+        alphabet = c["alphabet"]
+        is_preset = alphabet in PRESET_NAMES
+        codec = CyclingDealcode(c["key"], alphabet, length=c["length"], domain=c["domain"])
+        cfg = {
+            "name": c["name"],
+            "alphabet": alphabet if is_preset else "custom",
+            "length": codec.length,
+            "domain": c["domain"],
+            "capacity": str(codec.capacity),
+            "max_cycle": str(codec.max_cycle),
+        }
+        if isinstance(c["key"], str):
+            cfg["key_string"] = c["key"]
+        else:
+            cfg["key_hex"] = c["key"].hex()
+        if not is_preset:
+            cfg["custom_alphabet"] = alphabet
+        cfg["vectors"] = []
+        for n in cycle_counters_for(codec):
+            code = codec.encode(n)
+            assert codec.decode(code, n // codec.capacity) == n
+            cfg["vectors"].append({"n": str(n), "code": code})
+        cfg["invalid_codes"] = cycle_invalid_codes_for(codec)
+        cfg["normalize"] = cycle_normalize_for(codec, alphabet)
+        cfg["range_counters"] = list(dict.fromkeys(RANGE_COUNTERS))
+        for c_str in cfg["range_counters"]:
+            try:
+                codec.encode(int(c_str))
+            except RangeError:
+                pass
+            else:
+                raise AssertionError(f"cycle range counter accepted: {c_str}")
+        cfg["invalid_cycles"] = ["-1", str(codec.max_cycle + 1)]
+        probe = codec.encode(0)
+        for cyc in cfg["invalid_cycles"]:
+            try:
+                codec.decode(probe, int(cyc))
+            except RangeError:
+                pass
+            else:
+                raise AssertionError(f"invalid cycle accepted: {cyc}")
+        out["configs"].append(cfg)
+
+    out["invalid_configs"] = []
+    for ic in CYCLE_INVALID_CONFIGS:
+        key = bytes.fromhex(ic["key_hex"]) if "key_hex" in ic else ic["key_string"]
+        alphabet = ic.get("custom_alphabet", ic.get("alphabet"))
+        try:
+            CyclingDealcode(key, alphabet, length=ic["length"], domain=ic.get("domain", ""))
+        except ConfigError:
+            pass
+        else:
+            raise AssertionError(f"invalid cycle config accepted: {ic['name']}")
+        out["invalid_configs"].append(dict(ic))
+    return out
 
 
 def samples(lo: int, hi: int, count: int = 3):
@@ -284,6 +443,16 @@ def main() -> None:
     total = sum(len(c["vectors"]) for c in out["configs"])
     invalid = sum(len(c["invalid_codes"]) for c in out["configs"])
     print(f"wrote {path} ({len(out['configs'])} configs, {total} vectors, {invalid} invalid)")
+
+    v1c = generate_v1c()
+    path_c = ROOT / "testvectors" / "v1c.json"
+    path_c.write_text(json.dumps(v1c, indent=2) + "\n")
+    total_c = sum(len(c["vectors"]) for c in v1c["configs"])
+    invalid_c = sum(len(c["invalid_codes"]) for c in v1c["configs"])
+    print(
+        f"wrote {path_c} ({len(v1c['configs'])} configs, {total_c} vectors, "
+        f"{invalid_c} invalid)"
+    )
 
 
 if __name__ == "__main__":

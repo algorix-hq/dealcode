@@ -65,7 +65,9 @@ typedef enum {
                                       lengths, domain) at construction, or a
                                       NULL required argument. */
     DEALCODE_ERR_RANGE,          /**< encode: counter outside
-                                      [0, dealcode_capacity()). */
+                                      [0, dealcode_capacity()) (cycling mode:
+                                      outside [0, 2^63)); cycling decode:
+                                      cycle > dealcode_cycle_max_cycle(). */
     DEALCODE_ERR_INVALID_CODE,   /**< decode: input fails length, charset, or
                                       stage-range validation — the code was
                                       never issued by this codec. */
@@ -236,6 +238,156 @@ int dealcode_radix(const dealcode_t *dc);
  * string owned by the codec. Returns NULL if `dc` is NULL.
  */
 const char *dealcode_alphabet(const dealcode_t *dc);
+
+/* ====================================================================== */
+/* Fixed-length cycling mode (SPEC.md §11, tweak namespace dealcode/v1c/) */
+/* ====================================================================== */
+
+/**
+ * @brief Opaque cycling-mode codec handle (SPEC.md §11). Create with
+ * dealcode_cycle_new(), destroy with dealcode_cycle_free(). Immutable and
+ * thread-safe after creation, like dealcode_t.
+ *
+ * Codes are always exactly `length` characters. The counter space is the
+ * same [0, 2^63) as plain v1, used in *cycles* of
+ * capacity C = radix^length: counter `n` belongs to cycle `n / C` with
+ * in-cycle value `n % C`, and every cycle is a different keyed permutation
+ * of the same fixed-length code space (a different FF1 tweak,
+ * "dealcode/v1c/" + decimal(cycle) + "/" + domain), so when the space is
+ * exhausted it refills in a new order instead of growing.
+ *
+ * **Codes REPEAT across cycles by design** (pigeonhole: the same space is
+ * being refilled). Cycling mode is only sound when at most one cycle's
+ * codes are live at a time in a given uniqueness scope: retire or expire
+ * cycle e's codes before issuing from cycle e+1, or scope storage by cycle.
+ * A global UNIQUE(code) index spanning cycles WILL fire — scope it as
+ * UNIQUE(cycle, code) or equivalent. The application must persist which
+ * cycle each live code belongs to (or the currently active cycle):
+ * dealcode_cycle_decode() needs it, and the library cannot recover the
+ * cycle from the code string.
+ */
+typedef struct dealcode_cycle_st dealcode_cycle_t;
+
+/**
+ * @brief Cycling-codec configuration (SPEC.md §11.1). Zero-initialize,
+ * then set fields.
+ *
+ * `key` / `key_len` / `key_string` follow exactly the same rules as
+ * dealcode_config_t (SPEC.md §2.1), including the preset-name guard for
+ * string keys. `alphabet` follows the same rules as dealcode_config_t
+ * (SPEC.md §3), including the preset-name-in-disguise guard.
+ */
+typedef struct {
+    const uint8_t *key;        /**< Key material as bytes, or NULL. */
+    size_t key_len;            /**< Length of `key` in bytes. */
+    const char *key_string;    /**< Key material as a NUL-terminated UTF-8
+                                    string, or NULL. */
+    const char *alphabet;      /**< Preset name or custom alphabet, as in
+                                    dealcode_config_t. NULL means "hex". */
+    int length;                /**< Fixed code length; 0 means the default
+                                    (6). Must satisfy 2 <= length <= 128,
+                                    radix^length >= 100 and
+                                    radix^length <= 2^63 (the per-cycle
+                                    capacity must itself fit the counter
+                                    space; for larger fixed spaces use the
+                                    plain codec with
+                                    min_length == max_length). */
+    const char *domain;        /**< Namespace label bound into the FF1 tweak
+                                    ("dealcode/v1c/" + cycle + "/" + domain).
+                                    At most 255 UTF-8 bytes. NULL means "". */
+} dealcode_cycle_config_t;
+
+/**
+ * @brief Create a cycling codec.
+ *
+ * @param cfg Configuration; see dealcode_cycle_config_t. Must not be NULL.
+ * @param out Receives the new handle on success. Must not be NULL.
+ * @return DEALCODE_OK, or DEALCODE_ERR_CONFIG / DEALCODE_ERR_CRYPTO /
+ *         DEALCODE_ERR_NOMEM. On error `*out` is set to NULL.
+ */
+dealcode_err_t dealcode_cycle_new(const dealcode_cycle_config_t *cfg,
+                                  dealcode_cycle_t **out);
+
+/**
+ * @brief Create a cycling codec, with a human-readable diagnostic on
+ * failure — same errbuf contract as dealcode_new_ex() (empty string on
+ * success, one-line explanation naming the offending field on failure,
+ * DEALCODE_ERRBUF_SIZE recommended, key material never echoed except the
+ * deliberate preset-name-as-key case).
+ */
+dealcode_err_t dealcode_cycle_new_ex(const dealcode_cycle_config_t *cfg,
+                                     dealcode_cycle_t **out,
+                                     char *errbuf, size_t errbuf_len);
+
+/**
+ * @brief Destroy a cycling codec and wipe its key material. NULL is a
+ * no-op.
+ */
+void dealcode_cycle_free(dealcode_cycle_t *dc);
+
+/**
+ * @brief Map counter `n` to its fixed-length code
+ * (cycle = n / dealcode_cycle_capacity(dc)).
+ *
+ * @param dc       Codec handle.
+ * @param n        Counter; must be in [0, 2^63).
+ * @param out      Receives the NUL-terminated code — always exactly
+ *                 dealcode_cycle_length(dc) characters.
+ * @param out_size Size of `out` in bytes; needs length + 1.
+ *                 DEALCODE_MAX_CODE_SIZE always suffices.
+ * @return DEALCODE_OK; DEALCODE_ERR_RANGE if `n` >= 2^63;
+ *         DEALCODE_ERR_BUFFER if `out` is NULL or `out_size` too small
+ *         (nothing is written); DEALCODE_ERR_CRYPTO / DEALCODE_ERR_NOMEM
+ *         on internal failure.
+ */
+dealcode_err_t dealcode_cycle_encode(const dealcode_cycle_t *dc, uint64_t n,
+                                     char *out, size_t out_size);
+
+/**
+ * @brief Map a code issued in `cycle` back to its counter.
+ *
+ * The cycle is required: the same string recurs in every cycle, mapping to
+ * a different counter each time (SPEC.md §11.3). Preset-alphabet
+ * normalization (SPEC.md §3.1) applies exactly as in plain decode.
+ *
+ * @param dc    Codec handle.
+ * @param code  NUL-terminated code string.
+ * @param cycle Cycle the code was issued in; must be
+ *              <= dealcode_cycle_max_cycle(dc).
+ * @param n_out Receives the counter on success.
+ * @return DEALCODE_OK; DEALCODE_ERR_RANGE if `cycle` exceeds max_cycle;
+ *         DEALCODE_ERR_INVALID_CODE if the code fails length or charset
+ *         checks, or maps past 2^63 in the final partial cycle;
+ *         DEALCODE_ERR_CRYPTO / DEALCODE_ERR_NOMEM on internal failure.
+ */
+dealcode_err_t dealcode_cycle_decode(const dealcode_cycle_t *dc,
+                                     const char *code, uint64_t cycle,
+                                     uint64_t *n_out);
+
+/**
+ * @brief Codes per cycle: radix^length (may be exactly 2^63).
+ * Returns 0 if `dc` is NULL.
+ */
+uint64_t dealcode_cycle_capacity(const dealcode_cycle_t *dc);
+
+/**
+ * @brief Largest usable cycle: (2^63 - 1) / capacity. Returns 0 if `dc`
+ * is NULL (indistinguishable from a genuine max_cycle of 0 — check the
+ * handle instead).
+ */
+uint64_t dealcode_cycle_max_cycle(const dealcode_cycle_t *dc);
+
+/** @brief Configured fixed code length. Returns 0 if `dc` is NULL. */
+int dealcode_cycle_length(const dealcode_cycle_t *dc);
+
+/** @brief Alphabet size (number of characters). Returns 0 if `dc` is NULL. */
+int dealcode_cycle_radix(const dealcode_cycle_t *dc);
+
+/**
+ * @brief The alphabet characters, in numeral order, as a NUL-terminated
+ * string owned by the codec. Returns NULL if `dc` is NULL.
+ */
+const char *dealcode_cycle_alphabet(const dealcode_cycle_t *dc);
 
 /**
  * @brief Human-readable description of an error code. Never returns NULL.

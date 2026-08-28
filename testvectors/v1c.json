@@ -1,0 +1,806 @@
+{
+  "spec": "dealcode/v1c",
+  "configs": [
+    {
+      "name": "crockford-pnr6",
+      "alphabet": "crockford",
+      "length": 6,
+      "domain": "",
+      "capacity": "1073741824",
+      "max_cycle": "8589934591",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "Q8JBHC"
+        },
+        {
+          "n": "1",
+          "code": "ZZFGY1"
+        },
+        {
+          "n": "2",
+          "code": "H51FFT"
+        },
+        {
+          "n": "7",
+          "code": "GWMCWF"
+        },
+        {
+          "n": "42",
+          "code": "8ED0S7"
+        },
+        {
+          "n": "1073741823",
+          "code": "GA0XA7"
+        },
+        {
+          "n": "1073741824",
+          "code": "NV8TZ7"
+        },
+        {
+          "n": "1073741825",
+          "code": "VWPXVC"
+        },
+        {
+          "n": "2147483647",
+          "code": "J34HAX"
+        },
+        {
+          "n": "2147483648",
+          "code": "GY7N0G"
+        },
+        {
+          "n": "2147483655",
+          "code": "MDCC85"
+        },
+        {
+          "n": "13255342817280",
+          "code": "J8MZHJ"
+        },
+        {
+          "n": "13255342817281",
+          "code": "31Z5X1"
+        },
+        {
+          "n": "13256416559103",
+          "code": "8C7A57"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "VY1M8W"
+        }
+      ],
+      "invalid_codes": [
+        {
+          "cycle": "0",
+          "code": "00000"
+        },
+        {
+          "cycle": "0",
+          "code": "0000000"
+        },
+        {
+          "cycle": "0",
+          "code": ""
+        },
+        {
+          "cycle": "0",
+          "code": " 00000"
+        },
+        {
+          "cycle": "0",
+          "code": "00000\n"
+        },
+        {
+          "cycle": "0",
+          "code": "!00000"
+        }
+      ],
+      "normalize": [
+        {
+          "cycle": "0",
+          "input": "phcefv",
+          "n": "123456"
+        }
+      ],
+      "range_counters": [
+        "-1",
+        "9223372036854775808",
+        "18446744073709551616"
+      ],
+      "invalid_cycles": [
+        "-1",
+        "8589934592"
+      ]
+    },
+    {
+      "name": "dec-6",
+      "alphabet": "dec",
+      "length": 6,
+      "domain": "bookings",
+      "capacity": "1000000",
+      "max_cycle": "9223372036854",
+      "key_hex": "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "386504"
+        },
+        {
+          "n": "1",
+          "code": "451685"
+        },
+        {
+          "n": "2",
+          "code": "305607"
+        },
+        {
+          "n": "7",
+          "code": "626101"
+        },
+        {
+          "n": "42",
+          "code": "890640"
+        },
+        {
+          "n": "999999",
+          "code": "858009"
+        },
+        {
+          "n": "1000000",
+          "code": "654179"
+        },
+        {
+          "n": "1000001",
+          "code": "738683"
+        },
+        {
+          "n": "1999999",
+          "code": "545386"
+        },
+        {
+          "n": "2000000",
+          "code": "040640"
+        },
+        {
+          "n": "2000007",
+          "code": "196674"
+        },
+        {
+          "n": "12345000000",
+          "code": "700143"
+        },
+        {
+          "n": "12345000001",
+          "code": "525685"
+        },
+        {
+          "n": "12345999999",
+          "code": "274426"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "104805"
+        }
+      ],
+      "invalid_codes": [
+        {
+          "cycle": "0",
+          "code": "00000"
+        },
+        {
+          "cycle": "0",
+          "code": "0000000"
+        },
+        {
+          "cycle": "0",
+          "code": ""
+        },
+        {
+          "cycle": "0",
+          "code": " 00000"
+        },
+        {
+          "cycle": "0",
+          "code": "00000\n"
+        },
+        {
+          "cycle": "0",
+          "code": "!00000"
+        },
+        {
+          "cycle": "9223372036854",
+          "code": "603177"
+        },
+        {
+          "cycle": "9223372036854",
+          "code": "338074"
+        }
+      ],
+      "normalize": [],
+      "range_counters": [
+        "-1",
+        "9223372036854775808",
+        "18446744073709551616"
+      ],
+      "invalid_cycles": [
+        "-1",
+        "9223372036855"
+      ]
+    },
+    {
+      "name": "hex-4-small",
+      "alphabet": "hex",
+      "length": 4,
+      "domain": "",
+      "capacity": "65536",
+      "max_cycle": "140737488355327",
+      "key_hex": "000102030405060708090a0b0c0d0e0f1011121314151617",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "9b72"
+        },
+        {
+          "n": "1",
+          "code": "bf5a"
+        },
+        {
+          "n": "2",
+          "code": "216d"
+        },
+        {
+          "n": "7",
+          "code": "f032"
+        },
+        {
+          "n": "42",
+          "code": "36eb"
+        },
+        {
+          "n": "65535",
+          "code": "b63a"
+        },
+        {
+          "n": "65536",
+          "code": "a79f"
+        },
+        {
+          "n": "65537",
+          "code": "acba"
+        },
+        {
+          "n": "131071",
+          "code": "6422"
+        },
+        {
+          "n": "131072",
+          "code": "4065"
+        },
+        {
+          "n": "131079",
+          "code": "3c0e"
+        },
+        {
+          "n": "809041920",
+          "code": "e893"
+        },
+        {
+          "n": "809041921",
+          "code": "0d3a"
+        },
+        {
+          "n": "809107455",
+          "code": "d451"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "61c6"
+        }
+      ],
+      "invalid_codes": [
+        {
+          "cycle": "0",
+          "code": "000"
+        },
+        {
+          "cycle": "0",
+          "code": "00000"
+        },
+        {
+          "cycle": "0",
+          "code": ""
+        },
+        {
+          "cycle": "0",
+          "code": " 000"
+        },
+        {
+          "cycle": "0",
+          "code": "000\n"
+        },
+        {
+          "cycle": "0",
+          "code": "!000"
+        }
+      ],
+      "normalize": [
+        {
+          "cycle": "0",
+          "input": "BE24",
+          "n": "57920"
+        }
+      ],
+      "range_counters": [
+        "-1",
+        "9223372036854775808",
+        "18446744073709551616"
+      ],
+      "invalid_cycles": [
+        "-1",
+        "140737488355328"
+      ]
+    },
+    {
+      "name": "base62-8",
+      "alphabet": "base62",
+      "length": 8,
+      "domain": "",
+      "capacity": "218340105584896",
+      "max_cycle": "42243",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "2B9tECCP"
+        },
+        {
+          "n": "1",
+          "code": "XRPX2ERY"
+        },
+        {
+          "n": "2",
+          "code": "4X9vZeZp"
+        },
+        {
+          "n": "7",
+          "code": "evbtqrtU"
+        },
+        {
+          "n": "42",
+          "code": "ya7jyk5k"
+        },
+        {
+          "n": "218340105584895",
+          "code": "3x4EJtgZ"
+        },
+        {
+          "n": "218340105584896",
+          "code": "PW9cFXHz"
+        },
+        {
+          "n": "218340105584897",
+          "code": "87ZerHaT"
+        },
+        {
+          "n": "436680211169791",
+          "code": "NzbkDdGV"
+        },
+        {
+          "n": "436680211169792",
+          "code": "0V3wsmDI"
+        },
+        {
+          "n": "436680211169799",
+          "code": "bpEX9Ue2"
+        },
+        {
+          "n": "2695408603445541120",
+          "code": "BN27NUOq"
+        },
+        {
+          "n": "2695408603445541121",
+          "code": "wrygHGwb"
+        },
+        {
+          "n": "2695626943551126015",
+          "code": "gTQG6N3U"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "9Tavn9Lf"
+        }
+      ],
+      "invalid_codes": [
+        {
+          "cycle": "0",
+          "code": "0000000"
+        },
+        {
+          "cycle": "0",
+          "code": "000000000"
+        },
+        {
+          "cycle": "0",
+          "code": ""
+        },
+        {
+          "cycle": "0",
+          "code": " 0000000"
+        },
+        {
+          "cycle": "0",
+          "code": "0000000\n"
+        },
+        {
+          "cycle": "0",
+          "code": "!0000000"
+        },
+        {
+          "cycle": "42243",
+          "code": "0VWuelAY"
+        },
+        {
+          "cycle": "42243",
+          "code": "UVjoJoBB"
+        }
+      ],
+      "normalize": [],
+      "range_counters": [
+        "-1",
+        "9223372036854775808",
+        "18446744073709551616"
+      ],
+      "invalid_cycles": [
+        "-1",
+        "42244"
+      ]
+    },
+    {
+      "name": "dec-2-many-cycles",
+      "alphabet": "dec",
+      "length": 2,
+      "domain": "",
+      "capacity": "100",
+      "max_cycle": "92233720368547758",
+      "key_string": "correct horse battery staple",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "34"
+        },
+        {
+          "n": "1",
+          "code": "93"
+        },
+        {
+          "n": "2",
+          "code": "50"
+        },
+        {
+          "n": "7",
+          "code": "45"
+        },
+        {
+          "n": "42",
+          "code": "30"
+        },
+        {
+          "n": "99",
+          "code": "32"
+        },
+        {
+          "n": "100",
+          "code": "70"
+        },
+        {
+          "n": "101",
+          "code": "66"
+        },
+        {
+          "n": "199",
+          "code": "37"
+        },
+        {
+          "n": "200",
+          "code": "72"
+        },
+        {
+          "n": "207",
+          "code": "12"
+        },
+        {
+          "n": "1234500",
+          "code": "50"
+        },
+        {
+          "n": "1234501",
+          "code": "90"
+        },
+        {
+          "n": "1234599",
+          "code": "49"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "40"
+        }
+      ],
+      "invalid_codes": [
+        {
+          "cycle": "0",
+          "code": "0"
+        },
+        {
+          "cycle": "0",
+          "code": "000"
+        },
+        {
+          "cycle": "0",
+          "code": ""
+        },
+        {
+          "cycle": "0",
+          "code": " 0"
+        },
+        {
+          "cycle": "0",
+          "code": "0\n"
+        },
+        {
+          "cycle": "0",
+          "code": "!0"
+        },
+        {
+          "cycle": "92233720368547758",
+          "code": "08"
+        },
+        {
+          "cycle": "92233720368547758",
+          "code": "01"
+        }
+      ],
+      "normalize": [],
+      "range_counters": [
+        "-1",
+        "9223372036854775808",
+        "18446744073709551616"
+      ],
+      "invalid_cycles": [
+        "-1",
+        "92233720368547759"
+      ]
+    },
+    {
+      "name": "octal-21-single-cycle",
+      "alphabet": "custom",
+      "length": 21,
+      "domain": "",
+      "capacity": "9223372036854775808",
+      "max_cycle": "0",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "custom_alphabet": "01234567",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "346254126256574726305"
+        },
+        {
+          "n": "1",
+          "code": "576621715504665012030"
+        },
+        {
+          "n": "2",
+          "code": "404316457723421170347"
+        },
+        {
+          "n": "7",
+          "code": "517543072350107261637"
+        },
+        {
+          "n": "42",
+          "code": "440541656436161516342"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "562160372767461646275"
+        }
+      ],
+      "invalid_codes": [
+        {
+          "cycle": "0",
+          "code": "00000000000000000000"
+        },
+        {
+          "cycle": "0",
+          "code": "0000000000000000000000"
+        },
+        {
+          "cycle": "0",
+          "code": ""
+        },
+        {
+          "cycle": "0",
+          "code": " 00000000000000000000"
+        },
+        {
+          "cycle": "0",
+          "code": "00000000000000000000\n"
+        },
+        {
+          "cycle": "0",
+          "code": "!00000000000000000000"
+        }
+      ],
+      "normalize": [],
+      "range_counters": [
+        "-1",
+        "9223372036854775808",
+        "18446744073709551616"
+      ],
+      "invalid_cycles": [
+        "-1",
+        "1"
+      ]
+    },
+    {
+      "name": "korean-domain",
+      "alphabet": "hex",
+      "length": 6,
+      "domain": "\uc608\uc57d\u00b7\ucf54\ub4dc",
+      "capacity": "16777216",
+      "max_cycle": "549755813887",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "vectors": [
+        {
+          "n": "0",
+          "code": "3a5c6f"
+        },
+        {
+          "n": "1",
+          "code": "6addd7"
+        },
+        {
+          "n": "2",
+          "code": "ea2b42"
+        },
+        {
+          "n": "7",
+          "code": "427519"
+        },
+        {
+          "n": "42",
+          "code": "8bb976"
+        },
+        {
+          "n": "16777215",
+          "code": "5c2afe"
+        },
+        {
+          "n": "16777216",
+          "code": "0e1e9b"
+        },
+        {
+          "n": "16777217",
+          "code": "fcc90d"
+        },
+        {
+          "n": "33554431",
+          "code": "1bf3fd"
+        },
+        {
+          "n": "33554432",
+          "code": "3d8bd8"
+        },
+        {
+          "n": "33554439",
+          "code": "a639c4"
+        },
+        {
+          "n": "207114731520",
+          "code": "5548d7"
+        },
+        {
+          "n": "207114731521",
+          "code": "eabaed"
+        },
+        {
+          "n": "207131508735",
+          "code": "a810d9"
+        },
+        {
+          "n": "9223372036854775807",
+          "code": "3121b2"
+        }
+      ],
+      "invalid_codes": [
+        {
+          "cycle": "0",
+          "code": "00000"
+        },
+        {
+          "cycle": "0",
+          "code": "0000000"
+        },
+        {
+          "cycle": "0",
+          "code": ""
+        },
+        {
+          "cycle": "0",
+          "code": " 00000"
+        },
+        {
+          "cycle": "0",
+          "code": "00000\n"
+        },
+        {
+          "cycle": "0",
+          "code": "!00000"
+        }
+      ],
+      "normalize": [
+        {
+          "cycle": "0",
+          "input": "905D9F",
+          "n": "123456"
+        }
+      ],
+      "range_counters": [
+        "-1",
+        "9223372036854775808",
+        "18446744073709551616"
+      ],
+      "invalid_cycles": [
+        "-1",
+        "549755813888"
+      ]
+    }
+  ],
+  "invalid_configs": [
+    {
+      "name": "length-one",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "alphabet": "dec",
+      "length": 1
+    },
+    {
+      "name": "codespace-under-100",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "custom_alphabet": "abcdefghi",
+      "length": 2
+    },
+    {
+      "name": "capacity-over-2pow63",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "alphabet": "hex",
+      "length": 16
+    },
+    {
+      "name": "preset-lookalike-alphabet",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "custom_alphabet": "HEX",
+      "length": 6
+    },
+    {
+      "name": "preset-name-as-key",
+      "key_string": "crockford",
+      "alphabet": "hex",
+      "length": 6
+    },
+    {
+      "name": "empty-key",
+      "key_string": "",
+      "alphabet": "hex",
+      "length": 6
+    },
+    {
+      "name": "domain-256-bytes",
+      "key_hex": "000102030405060708090a0b0c0d0e0f",
+      "alphabet": "hex",
+      "length": 6,
+      "domain": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+    }
+  ]
+}

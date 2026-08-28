@@ -135,6 +135,36 @@ invisible — codes look random anyway.
 If the `UNIQUE` constraint on `code` ever fires, do not retry: it means the
 key/config changed for an existing namespace. Investigate.
 
+## Fixed-length cycling mode
+
+For code shapes that must never grow — airline-PNR-style fixed-length codes —
+`CyclingDealcode` (SPEC §11) fills the entire fixed-length space, and when it
+is exhausted refills the *same* space through a different permutation instead
+of adding a character:
+
+```ts
+import { CyclingDealcode } from "dealcode";
+
+const pnr = new CyclingDealcode({ key, alphabet: "crockford", length: 6, domain: "bookings" });
+
+const code = pnr.encode(n);      // always exactly 6 chars; cycle = n / pnr.capacity
+pnr.decode(code, 3);             // bigint counter — the cycle is required context
+pnr.cycleOf(n);                  // which cycle a counter belongs to (bigint)
+```
+
+Configuration is `key`, `alphabet`, and `domain` as for `Dealcode`, plus a
+single fixed `length` (default 6) with `radix^length` between 100 and 2^63.
+Read-only properties: `alphabet`, `radix`, `length`, `domain`, `capacity`
+(codes per cycle, `radix^length`, a `bigint`) and `maxCycle` (a `bigint`).
+Counters still live in `[0, 2^63)`; a cycle out of `[0, maxCycle]` throws
+`CounterRangeError`, and a wrong-length code throws `InvalidCodeError`.
+
+Codes **repeat across cycles** (the space is being reused — that's the
+point), so keep at most one cycle's codes live per uniqueness scope: retire
+or expire cycle `e` before issuing from `e+1`, index with
+`UNIQUE(cycle, code)` rather than `UNIQUE(code)`, and store each live code's
+cycle — `decode` needs it.
+
 ## Keys
 
 Generate a key once and store it like any other production secret:

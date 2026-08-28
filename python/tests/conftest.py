@@ -14,3 +14,8 @@ def nist_vectors():
 @pytest.fixture(scope="session")
 def v1_vectors():
     return json.loads((VECTOR_DIR / "v1.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def v1c_vectors():
+    return json.loads((VECTOR_DIR / "v1c.json").read_text())

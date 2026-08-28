@@ -33,7 +33,8 @@ final class TestVectors {
             for (int i = 0; i < 8 && p != null; i++, p = p.getParent()) {
                 Path tv = p.resolve("testvectors");
                 if (Files.isRegularFile(tv.resolve("ff1_nist.json"))
-                        && Files.isRegularFile(tv.resolve("v1.json"))) {
+                        && Files.isRegularFile(tv.resolve("v1.json"))
+                        && Files.isRegularFile(tv.resolve("v1c.json"))) {
                     return tv;
                 }
             }

@@ -10,8 +10,11 @@ import {
 import { ConfigError, CounterRangeError, InvalidCodeError } from "./errors.js";
 import { FF1 } from "./ff1.js";
 
-/** Counters live in `[0, min(radix^maxLength, 2^63))`. */
-const COUNTER_BOUND = 2n ** 63n;
+/**
+ * Counters live in `[0, min(radix^maxLength, 2^63))`.
+ * @internal Shared with the cycling mode (`cycle.ts`); not public API.
+ */
+export const COUNTER_BOUND = 2n ** 63n;
 /** `radix^maxLength` must not exceed this. */
 const CODESPACE_BOUND = 2n ** 128n;
 const TWEAK_PREFIX = "dealcode/v1/";
@@ -57,8 +60,9 @@ export interface DealcodeOptions {
  * Rejects U+0000 and unpaired surrogates in string inputs (SPEC.md §2.1) —
  * silently re-encoding them (Buffer would emit U+FFFD) makes the "same"
  * input produce different permutations across languages.
+ * @internal Shared with the cycling mode (`cycle.ts`); not public API.
  */
-function assertCleanUnicode(value: string, what: string): void {
+export function assertCleanUnicode(value: string, what: string): void {
   if (value.includes("\u0000")) {
     throw new ConfigError(`${what} must not contain U+0000`);
   }
@@ -74,8 +78,11 @@ function assertCleanUnicode(value: string, what: string): void {
   }
 }
 
-/** Key material handling (SPEC.md §2.1). */
-function resolveKey(key: string | Uint8Array): Buffer {
+/**
+ * Key material handling (SPEC.md §2.1).
+ * @internal Shared with the cycling mode (`cycle.ts`); not public API.
+ */
+export function resolveKey(key: string | Uint8Array): Buffer {
   let material: Buffer;
   let direct: boolean;
   if (typeof key === "string") {

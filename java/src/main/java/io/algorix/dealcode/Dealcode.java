@@ -43,7 +43,7 @@ import java.security.NoSuchAlgorithmException;
  * {@link javax.crypto.Cipher}, is held per-thread in a {@link ThreadLocal}.
  * Create one codec per code namespace at startup and share it freely.</p>
  *
- * @see <a href="https://github.com/algorix/dealcode">dealcode specification (SPEC.md)</a>
+ * @see <a href="https://github.com/algorix-hq/dealcode">dealcode specification (SPEC.md)</a>
  */
 public final class Dealcode {
 
@@ -499,9 +499,10 @@ public final class Dealcode {
         /**
          * Rejects U+0000 and unpaired surrogates (SPEC §2.1) — silently
          * encoding them (Java would emit '?') makes the "same" input produce
-         * different permutations across languages.
+         * different permutations across languages. Package-private so
+         * {@link CyclingDealcode.Builder} applies the identical rule.
          */
-        private static void requireCleanUnicode(String value, String what) {
+        static void requireCleanUnicode(String value, String what) {
             if (value.indexOf('\u0000') >= 0) {
                 throw new ConfigException(what + " must not contain U+0000");
             }
@@ -520,8 +521,12 @@ public final class Dealcode {
             }
         }
 
-        /** Key material handling (SPEC §2.1). */
-        private static byte[] resolveKey(byte[] keyBytes, String keyString) {
+        /**
+         * Key material handling (SPEC §2.1). Package-private so
+         * {@link CyclingDealcode.Builder} applies the identical rules
+         * (direct-use lengths, KDF, and the preset-name-as-key guard).
+         */
+        static byte[] resolveKey(byte[] keyBytes, String keyString) {
             byte[] material;
             boolean direct;
             if (keyString != null) {

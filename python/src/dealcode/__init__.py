@@ -11,12 +11,14 @@ from ._codec import (
     InvalidCodeError,
     RangeError,
 )
+from ._cycle import CyclingDealcode
 from ._ff1 import FF1
 
 __version__ = "1.0.0"
 
 __all__ = [
     "Dealcode",
+    "CyclingDealcode",
     "DealcodeError",
     "ConfigError",
     "RangeError",

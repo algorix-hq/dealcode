@@ -2,9 +2,11 @@
 //
 // Covers: the 9 official NIST FF1 sample vectors (via the C core's private
 // FF1 seam), every config/vector/invalid-code/normalize case in
-// testvectors/v1.json, exception behaviour, move semantics, and roundtrip
-// sweeps across stage boundaries.
+// testvectors/v1.json, exception behaviour, move semantics, roundtrip
+// sweeps across stage boundaries, and fixed-length cycling mode (SPEC
+// section 11: every case in testvectors/v1c.json plus behaviour tests).
 
+#include <algorithm>
 #include <cstdint>
 #include <cstdio>
 #include <cstring>
@@ -590,6 +592,374 @@ static void test_counter_bound_rejection()
 // ------------------------------------------------------------------------
 
 
+// ------------------------------------------------------------------------
+// Fixed-length cycling mode (SPEC section 11)
+// ------------------------------------------------------------------------
+
+static dealcode::CycleCodec make_cycle_codec(const tv_cycle_config_t &cfg)
+{
+    dealcode::CycleOptions opts;
+    opts.alphabet = cfg.alphabet;
+    opts.length = cfg.length;
+    opts.domain = cfg.domain;
+    if (cfg.key_hex != nullptr)
+        return dealcode::CycleCodec(hex_decode(cfg.key_hex), opts);
+    return dealcode::CycleCodec(std::string_view(cfg.key_string), opts);
+}
+
+static void test_v1c_vectors()
+{
+    for (std::size_t i = 0; i < TV_V1C_COUNT; i++) {
+        const tv_cycle_config_t &cfg = TV_V1C[i];
+        try {
+            dealcode::CycleCodec codec = make_cycle_codec(cfg);
+
+            CHECK(codec.capacity() == cfg.capacity,
+                  "v1c %s: capacity %llu, want %llu", cfg.name,
+                  static_cast<unsigned long long>(codec.capacity()),
+                  static_cast<unsigned long long>(cfg.capacity));
+            CHECK(codec.max_cycle() == cfg.max_cycle,
+                  "v1c %s: max_cycle %llu, want %llu", cfg.name,
+                  static_cast<unsigned long long>(codec.max_cycle()),
+                  static_cast<unsigned long long>(cfg.max_cycle));
+            CHECK(codec.length() == cfg.length, "v1c %s: length accessor",
+                  cfg.name);
+            CHECK(static_cast<std::size_t>(codec.radix()) ==
+                      codec.alphabet().size(),
+                  "v1c %s: radix/alphabet accessors", cfg.name);
+
+            for (std::size_t j = 0; j < cfg.n_vectors; j++) {
+                const tv_pair_t &tv = cfg.vectors[j];
+                const std::string code = codec.encode(tv.n);
+                CHECK(code == tv.code,
+                      "v1c %s: encode(%llu) = \"%s\", want \"%s\"", cfg.name,
+                      static_cast<unsigned long long>(tv.n), code.c_str(),
+                      tv.code);
+                CHECK(codec.decode(tv.code, tv.n / cfg.capacity) == tv.n,
+                      "v1c %s: decode(\"%s\", %llu) != %llu", cfg.name,
+                      tv.code,
+                      static_cast<unsigned long long>(tv.n / cfg.capacity),
+                      static_cast<unsigned long long>(tv.n));
+            }
+
+            for (std::size_t j = 0; j < cfg.n_invalid_codes; j++) {
+                const tv_cycle_code_t &bad = cfg.invalid_codes[j];
+                CHECK(throws<dealcode::InvalidCodeError>(
+                          [&] { codec.decode(bad.code, bad.cycle); }),
+                      "v1c %s: decode(\"%s\", %llu) must throw "
+                      "InvalidCodeError",
+                      cfg.name, bad.code,
+                      static_cast<unsigned long long>(bad.cycle));
+            }
+
+            for (std::size_t j = 0; j < cfg.n_normalize; j++) {
+                const tv_cycle_norm_t &nc = cfg.normalize[j];
+                CHECK(codec.decode(nc.input, nc.cycle) == nc.n,
+                      "v1c %s: normalize decode(\"%s\", %llu) != %llu",
+                      cfg.name, nc.input,
+                      static_cast<unsigned long long>(nc.cycle),
+                      static_cast<unsigned long long>(nc.n));
+            }
+
+            for (std::size_t j = 0; j < cfg.n_range_counters; j++) {
+                CHECK(throws<dealcode::RangeError>(
+                          [&] { codec.encode(cfg.range_counters[j]); }),
+                      "v1c %s: encode(%llu) must throw RangeError", cfg.name,
+                      static_cast<unsigned long long>(cfg.range_counters[j]));
+            }
+
+            // invalid cycles ("-1" is unrepresentable in uint64_t and
+            // skipped by the generator; max_cycle + 1 is always present)
+            const std::string probe = codec.encode(0);
+            for (std::size_t j = 0; j < cfg.n_invalid_cycles; j++) {
+                CHECK(throws<dealcode::RangeError>(
+                          [&] {
+                              codec.decode(probe, cfg.invalid_cycles[j]);
+                          }),
+                      "v1c %s: decode(probe, %llu) must throw RangeError",
+                      cfg.name,
+                      static_cast<unsigned long long>(cfg.invalid_cycles[j]));
+            }
+            CHECK(throws<dealcode::RangeError>(
+                      [&] { codec.decode(probe, codec.max_cycle() + 1); }),
+                  "v1c %s: decode(probe, max_cycle + 1) must throw",
+                  cfg.name);
+        } catch (const std::exception &e) {
+            CHECK(false, "v1c %s: unexpected exception: %s", cfg.name,
+                  e.what());
+        }
+    }
+}
+
+static void test_v1c_invalid_configs()
+{
+    for (std::size_t i = 0; i < TV_V1C_INVALID_CONFIG_COUNT; i++) {
+        const tv_cycle_invalid_config_t &tv = TV_V1C_INVALID_CONFIGS[i];
+        bool threw = false;
+        std::string what;
+        try {
+            dealcode::CycleOptions opts;
+            opts.alphabet = tv.alphabet;
+            opts.length = tv.length;
+            if (tv.domain != nullptr)
+                opts.domain = tv.domain;
+            if (tv.key_hex != nullptr)
+                dealcode::CycleCodec(hex_decode(tv.key_hex), opts);
+            else
+                dealcode::CycleCodec(std::string_view(tv.key_string), opts);
+        } catch (const dealcode::ConfigError &e) {
+            threw = true;
+            what = e.what();
+        }
+        CHECK(threw, "v1c invalid-config %s: must throw ConfigError",
+              tv.name);
+        CHECK(threw && what.size() > std::string("CycleCodec(): ").size(),
+              "v1c invalid-config %s: what() must carry a diagnostic",
+              tv.name);
+    }
+}
+
+// Cycling construction reuses the plain guards verbatim; check the exact
+// diagnostics (prefixed CycleCodec()), plus the cycling-only length rules.
+static void test_cycle_config_errors()
+{
+    try {
+        dealcode::CycleOptions o;
+        o.alphabet = "HEX";
+        dealcode::CycleCodec("guard-key", o);
+        CHECK(false, "cycle guard A: \"HEX\" must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "CycleCodec(): custom alphabet \"HEX\" matches the preset "
+                  "name \"hex\" — pass \"hex\" for the preset, or a "
+                  "genuinely custom alphabet",
+              "cycle guard A: exact message, got \"%s\"", e.what());
+    }
+    try {
+        dealcode::CycleCodec codec(std::string_view("crockford"));
+        CHECK(false, "cycle guard B: \"crockford\" must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "CycleCodec(): string key \"crockford\" is a preset "
+                  "alphabet name — did you swap the key and alphabet "
+                  "fields?",
+              "cycle guard B: exact message, got \"%s\"", e.what());
+    }
+    // byte keys spelling a preset name are unaffected
+    {
+        const char *name = "crockford";
+        dealcode::CycleCodec codec(
+            reinterpret_cast<const std::uint8_t *>(name), 9);
+        CHECK(codec.decode(codec.encode(5), 0) == 5,
+              "cycle guard B: byte key \"crockford\" accepted");
+    }
+
+    // length rules
+    try {
+        dealcode::CycleOptions o;
+        o.length = 1;
+        dealcode::CycleCodec("k", o);
+        CHECK(false, "cycle: length 1 must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) == "CycleCodec(): length 1 < 2",
+              "cycle: length 1 message, got \"%s\"", e.what());
+    }
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::CycleOptions o;
+              o.length = 0;
+              dealcode::CycleCodec("k", o);
+          }),
+          "cycle: explicit length 0");
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::CycleOptions o;
+              o.length = 129;
+              dealcode::CycleCodec("k", o);
+          }),
+          "cycle: length 129");
+    try {
+        dealcode::CycleOptions o;
+        o.length = 16; // hex: 16^16 = 2^64 > 2^63
+        dealcode::CycleCodec("k", o);
+        CHECK(false, "cycle: 16^16 must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "CycleCodec(): radix^length (16^16) exceeds 2^63 in "
+                  "cycling mode — a cycle must be completable; use "
+                  "min_length == max_length for larger fixed spaces",
+              "cycle: over-2^63 message, got \"%s\"", e.what());
+    }
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::CycleOptions o;
+              o.alphabet = "abcdefghi"; // 9^2 = 81 < 100
+              o.length = 2;
+              dealcode::CycleCodec("k", o);
+          }),
+          "cycle: radix^length < 100");
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::CycleOptions o;
+              o.domain = std::string(256, 'a');
+              dealcode::CycleCodec("k", o);
+          }),
+          "cycle: domain > 255 bytes");
+
+    // embedded NUL rejection, as in Codec
+    CHECK(throws<dealcode::ConfigError>(
+              [] { dealcode::CycleCodec c(std::string("ab\0cd", 5)); }),
+          "cycle: NUL in string key");
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::CycleOptions o;
+              o.domain = std::string("x\0y", 3);
+              dealcode::CycleCodec c("k", o);
+          }),
+          "cycle: NUL in domain");
+
+    // boundaries that must SUCCEED
+    {
+        dealcode::CycleOptions o;
+        o.alphabet = "01234567";
+        o.length = 21; // 8^21 == 2^63 exactly
+        dealcode::CycleCodec codec("k", o);
+        CHECK(codec.capacity() == (UINT64_C(1) << 63),
+              "cycle: capacity == 2^63 accepted");
+        CHECK(codec.max_cycle() == 0, "cycle: single cycle");
+    }
+    {
+        dealcode::CycleOptions o;
+        o.alphabet = "dec";
+        o.length = 2; // 10^2 == 100 exactly
+        dealcode::CycleCodec codec("k", o);
+        CHECK(codec.capacity() == 100, "cycle: capacity == 100 accepted");
+    }
+}
+
+// SPEC section 11.3 behaviour: one cycle = a permutation of the full
+// fixed-length space; other cycles refill it in a different order.
+static void test_cycle_behaviour()
+{
+    dealcode::CycleOptions o;
+    o.alphabet = "dec";
+    o.length = 2; // capacity 100
+    dealcode::CycleCodec codec("cycle-behaviour-key", o);
+    CHECK(codec.capacity() == 100, "cycle perm: capacity");
+
+    std::vector<std::vector<std::string>> cycles;
+    for (std::uint64_t e = 0; e < 3; e++) {
+        std::vector<std::string> codes;
+        for (std::uint64_t v = 0; v < 100; v++) {
+            codes.push_back(codec.encode(e * 100 + v));
+            CHECK(codec.decode(codes.back(), e) == e * 100 + v,
+                  "cycle perm: roundtrip cycle %llu value %llu",
+                  static_cast<unsigned long long>(e),
+                  static_cast<unsigned long long>(v));
+        }
+        auto sorted = codes;
+        std::sort(sorted.begin(), sorted.end());
+        CHECK(std::unique(sorted.begin(), sorted.end()) == sorted.end(),
+              "cycle perm: cycle %llu issues distinct codes",
+              static_cast<unsigned long long>(e));
+        cycles.push_back(std::move(codes));
+    }
+    // same set every cycle, refilled in a different order
+    auto sorted0 = cycles[0], sorted1 = cycles[1], sorted2 = cycles[2];
+    std::sort(sorted0.begin(), sorted0.end());
+    std::sort(sorted1.begin(), sorted1.end());
+    std::sort(sorted2.begin(), sorted2.end());
+    CHECK(sorted0 == sorted1 && sorted1 == sorted2,
+          "cycle perm: every cycle covers the same code set");
+    CHECK(cycles[0] != cycles[1] && cycles[1] != cycles[2] &&
+              cycles[0] != cycles[2],
+          "cycle perm: cycles must differ in order");
+
+    // wrong cycle decodes, but to a different counter (documented
+    // ambiguity: cycle is context)
+    const std::string code = codec.encode(7);
+    CHECK(codec.decode(code, 0) == 7, "cycle perm: right cycle");
+    const std::uint64_t other = codec.decode(code, 1);
+    CHECK(other != 7 && other >= 100 && other < 200,
+          "cycle perm: wrong cycle gives that cycle's counter");
+
+    // counter-space top: 2^63 - 1 roundtrips, 2^63 is out of range
+    const std::uint64_t top = (UINT64_C(1) << 63) - 1;
+    CHECK(codec.decode(codec.encode(top), top / 100) == top,
+          "cycle perm: 2^63 - 1 roundtrip");
+    CHECK(throws<dealcode::RangeError>(
+              [&] { codec.encode(UINT64_C(1) << 63); }),
+          "cycle perm: encode(2^63) throws");
+
+    // octal-21: capacity exactly 2^63, a single cycle
+    dealcode::CycleOptions oc;
+    oc.alphabet = "01234567";
+    oc.length = 21;
+    dealcode::CycleCodec octal("cycle-behaviour-key", oc);
+    CHECK(octal.decode(octal.encode(top), 0) == top,
+          "cycle perm: octal-21 top roundtrip");
+    CHECK(throws<dealcode::RangeError>(
+              [&] { octal.decode(octal.encode(0), 1); }),
+          "cycle perm: octal-21 cycle 1 throws");
+}
+
+static void test_cycle_move_semantics()
+{
+    dealcode::CycleOptions o;
+    o.alphabet = "crockford";
+    o.length = 6;
+    dealcode::CycleCodec a("move-key", o);
+    const std::string code = a.encode(42);
+    const std::uint64_t cap = a.capacity();
+
+    dealcode::CycleCodec b = std::move(a);
+    CHECK(b.encode(42) == code && b.decode(code, 0) == 42,
+          "cycle move: moved-to codec works");
+    CHECK(b.capacity() == cap, "cycle move: capacity preserved");
+
+    // moved-from: accessors are safe (0/empty), operations throw
+    CHECK(a.capacity() == 0 && a.max_cycle() == 0 && a.length() == 0 &&
+              a.radix() == 0 && a.alphabet().empty(),
+          "cycle move: moved-from accessors are inert");
+    CHECK(throws<dealcode::ConfigError>([&] { a.encode(1); }),
+          "cycle move: moved-from encode throws");
+    CHECK(throws<dealcode::ConfigError>([&] { a.decode(code, 0); }),
+          "cycle move: moved-from decode throws");
+
+    dealcode::CycleCodec c("other-key", o);
+    c = std::move(b);
+    CHECK(c.encode(42) == code, "cycle move: move-assignment works");
+}
+
+static void test_cycle_exception_types()
+{
+    dealcode::CycleOptions o;
+    o.alphabet = "dec";
+    o.length = 6;
+    dealcode::CycleCodec codec("exc-key", o);
+
+    // hierarchy: all cycle errors root at dealcode::Error/std::runtime_error
+    CHECK(throws<dealcode::InvalidCodeError>(
+              [&] { codec.decode("12345", 0); }),
+          "cycle exc: short code -> InvalidCodeError");
+    CHECK(throws<dealcode::Error>([&] { codec.decode("12345", 0); }),
+          "cycle exc: derives from Error");
+    CHECK(throws<std::runtime_error>([&] { codec.decode("12345", 0); }),
+          "cycle exc: derives from std::runtime_error");
+    CHECK(throws<dealcode::RangeError>(
+              [&] { codec.decode("123456", codec.max_cycle() + 1); }),
+          "cycle exc: bad cycle -> RangeError");
+    CHECK(throws<dealcode::InvalidCodeError>(
+              [&] { codec.decode(std::string("12345\0", 6), 0); }),
+          "cycle exc: NUL in code -> InvalidCodeError");
+
+    // long-garbage echo is truncated like Codec::decode
+    try {
+        codec.decode(std::string(300, 'x'), 0);
+        CHECK(false, "cycle exc: long garbage must throw");
+    } catch (const dealcode::InvalidCodeError &e) {
+        const std::string what = e.what();
+        CHECK(what.size() < 200 &&
+                  what.find("(300 bytes)") != std::string::npos,
+              "cycle exc: truncated echo, got \"%s\"", what.c_str());
+    }
+}
+
 /* Regression tests for the QA round-2 findings: the wrapper must reject
  * embedded U+0000 explicitly instead of silently truncating at the NUL
  * when converting to the C API's NUL-terminated strings. */
@@ -651,6 +1021,12 @@ int main()
     test_roundtrips();
     test_counter_bound_rejection();
     test_embedded_nul_rejection();
+    test_v1c_vectors();
+    test_v1c_invalid_configs();
+    test_cycle_config_errors();
+    test_cycle_behaviour();
+    test_cycle_move_semantics();
+    test_cycle_exception_types();
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     if (g_failures != 0) {

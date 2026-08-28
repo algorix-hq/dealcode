@@ -11,13 +11,15 @@ from that.
   is wrong (or the spec needs an RFC — open an issue first).
 - Any change that alters `encode` output or `decode` acceptance is a **new
   format version**, not a patch. Format v1 outputs are frozen forever.
-- An implementation is conformant iff it passes both files in
+- An implementation is conformant iff it passes the files in
   [`testvectors/`](testvectors/):
   - `ff1_nist.json` — the official NIST FF1 samples (validates the FF1 core),
   - `v1.json` — dealcode vectors (validates the full codec). This covers
     every section: `vectors`, `invalid_codes`, `normalize`, `range_counters`,
     and the top-level `invalid_configs` (see SPEC.md §9 for the exact
-    obligations of each).
+    obligations of each),
+  - `v1c.json` — fixed-length cycling mode vectors (SPEC.md §11), required
+    for implementations that ship the mode; all seven here do.
 
 ## Working on an implementation
 

@@ -17,6 +17,9 @@
  *     uint64_t n = codec.decode(code);              // 42
  * @endcode
  *
+ * Fixed-length cycling mode (SPEC.md §11) is wrapped by
+ * dealcode::CycleCodec / dealcode::CycleOptions with the same semantics.
+ *
  * Semantics:
  *  - Codec is move-only (it owns the underlying C handle via unique_ptr).
  *  - All const member functions are thread-safe; a Codec may be shared
@@ -267,6 +270,177 @@ private:
     }
 
     std::unique_ptr<dealcode_t, detail::Deleter> handle_;
+};
+
+/** Cycling-codec configuration (SPEC.md §11.1); key material is passed
+ * separately. Alphabet and domain follow the same rules as Options. */
+struct CycleOptions {
+    /** Preset name or a custom alphabet, as in Options. */
+    std::string alphabet = "hex";
+    /** Fixed code length; must satisfy 2 <= length <= 128,
+     * radix^length >= 100 and radix^length <= 2^63 (the per-cycle capacity
+     * must itself fit the counter space; for larger fixed spaces use Codec
+     * with min_length == max_length). */
+    int length = 6;
+    /** Namespace label bound into the FF1 tweak
+     * ("dealcode/v1c/" + cycle + "/" + domain); at most 255 UTF-8 bytes. */
+    std::string domain;
+};
+
+namespace detail {
+
+struct CycleDeleter {
+    void operator()(dealcode_cycle_t *dc) const noexcept
+    {
+        dealcode_cycle_free(dc);
+    }
+};
+
+} // namespace detail
+
+/**
+ * Fixed-length cycling codec (SPEC.md §11). Thin RAII wrapper over
+ * dealcode_cycle_t, with the same move-only/exception/thread-safety
+ * semantics as Codec.
+ *
+ * Codes are always exactly length() characters. Counter `n` belongs to
+ * cycle `n / capacity()` with in-cycle value `n % capacity()`; every cycle
+ * is a different keyed permutation of the same code space (a different FF1
+ * tweak), so when the space is exhausted it refills in a new order instead
+ * of growing.
+ *
+ * Codes REPEAT across cycles by design — keep at most one cycle's codes
+ * live per uniqueness scope (`UNIQUE(cycle, code)`, not `UNIQUE(code)`),
+ * and store which cycle a live code belongs to: decode() needs it.
+ */
+class CycleCodec {
+public:
+    /** Construct with string key material (SPEC.md §2.1 string rule). */
+    explicit CycleCodec(std::string_view key, CycleOptions opts = {})
+    {
+        detail::reject_embedded_nul(key, "string key material");
+        const std::string key_copy(key); /* ensure NUL termination */
+        dealcode_cycle_config_t cfg{};
+        cfg.key_string = key_copy.c_str();
+        init(cfg, opts);
+    }
+
+    /** Construct with byte key material (SPEC.md §2.1 bytes rule). */
+    CycleCodec(const std::uint8_t *key, std::size_t key_len,
+               CycleOptions opts = {})
+    {
+        dealcode_cycle_config_t cfg{};
+        cfg.key = key;
+        cfg.key_len = key_len;
+        init(cfg, opts);
+    }
+
+    /** Convenience overload of the bytes rule. */
+    explicit CycleCodec(const std::vector<std::uint8_t> &key,
+                        CycleOptions opts = {})
+        : CycleCodec(key.data(), key.size(), std::move(opts))
+    {
+    }
+
+    CycleCodec(CycleCodec &&) noexcept = default;
+    CycleCodec &operator=(CycleCodec &&) noexcept = default;
+    CycleCodec(const CycleCodec &) = delete;
+    CycleCodec &operator=(const CycleCodec &) = delete;
+
+    /** Map counter `n` to its fixed-length code
+     * (cycle = n / capacity()). Throws RangeError if n >= 2^63. */
+    std::string encode(std::uint64_t n) const
+    {
+        char buf[DEALCODE_MAX_CODE_SIZE];
+        const dealcode_err_t err =
+            dealcode_cycle_encode(handle_.get(), n, buf, sizeof buf);
+        if (err != DEALCODE_OK)
+            detail::throw_error(err, "encode(" + std::to_string(n) + ")");
+        return std::string(buf);
+    }
+
+    /** Map a code issued in `cycle` back to its counter. The cycle is
+     * required: the same string recurs in every cycle, mapping to a
+     * different counter each time (SPEC.md §11.3). Throws RangeError if
+     * cycle > max_cycle(); InvalidCodeError if the code fails
+     * length/charset checks or maps past 2^63 in the final partial
+     * cycle. */
+    std::uint64_t decode(std::string_view code, std::uint64_t cycle) const
+    {
+        detail::reject_embedded_nul(code, "code", /*as_invalid_code=*/true);
+        const std::string code_copy(code); /* ensure NUL termination */
+        std::uint64_t n = 0;
+        const dealcode_err_t err = dealcode_cycle_decode(
+            handle_.get(), code_copy.c_str(), cycle, &n);
+        if (err != DEALCODE_OK) {
+            /* Echo at most a prefix of the (attacker-controlled) input so
+             * what() stays small for oversized garbage. */
+            constexpr std::size_t kEcho = 64;
+            std::string shown = code_copy.substr(0, kEcho);
+            if (code_copy.size() > kEcho)
+                shown += "…(" + std::to_string(code_copy.size()) + " bytes)";
+            detail::throw_error(err, "decode(\"" + shown + "\", " +
+                                         std::to_string(cycle) + ")");
+        }
+        return n;
+    }
+
+    /** Codes per cycle: radix^length (may be exactly 2^63). */
+    std::uint64_t capacity() const noexcept
+    {
+        return dealcode_cycle_capacity(handle_.get());
+    }
+
+    /** Largest usable cycle: (2^63 - 1) / capacity(). */
+    std::uint64_t max_cycle() const noexcept
+    {
+        return dealcode_cycle_max_cycle(handle_.get());
+    }
+
+    /** Configured fixed code length. */
+    int length() const noexcept
+    {
+        return dealcode_cycle_length(handle_.get());
+    }
+
+    /** Alphabet size (number of characters). */
+    int radix() const noexcept
+    {
+        return dealcode_cycle_radix(handle_.get());
+    }
+
+    /** The alphabet characters, in numeral order (empty if moved-from). */
+    std::string_view alphabet() const noexcept
+    {
+        const char *chars = dealcode_cycle_alphabet(handle_.get());
+        return chars ? std::string_view(chars) : std::string_view();
+    }
+
+private:
+    void init(dealcode_cycle_config_t &cfg, const CycleOptions &opts)
+    {
+        detail::reject_embedded_nul(opts.alphabet, "alphabet");
+        detail::reject_embedded_nul(opts.domain, "domain");
+        cfg.alphabet = opts.alphabet.c_str();
+        cfg.length = opts.length;
+        cfg.domain = opts.domain.c_str();
+        if (opts.length == 0)
+            throw ConfigError("length must be >= 2");
+
+        dealcode_cycle_t *dc = nullptr;
+        char errbuf[DEALCODE_ERRBUF_SIZE];
+        const dealcode_err_t err =
+            dealcode_cycle_new_ex(&cfg, &dc, errbuf, sizeof errbuf);
+        if (err != DEALCODE_OK) {
+            /* Prefer the C core's field-level diagnostic. */
+            const std::string detail =
+                errbuf[0] != '\0' ? errbuf : dealcode_strerror(err);
+            detail::throw_error_what(err, "CycleCodec(): " + detail);
+        }
+        handle_.reset(dc);
+    }
+
+    std::unique_ptr<dealcode_cycle_t, detail::CycleDeleter> handle_;
 };
 
 } // namespace dealcode

@@ -16,6 +16,7 @@
  */
 
 export { Dealcode, type DealcodeOptions } from "./codec.js";
+export { CyclingDealcode, type CyclingDealcodeOptions } from "./cycle.js";
 export { ALPHABETS, type AlphabetName } from "./alphabets.js";
 export {
   DealcodeError,

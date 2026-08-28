@@ -108,6 +108,28 @@ Small first stages (down to `r^min_length ≥ 100`) are supported and
 interoperable, but a tiny code space is trivially enumerable — see the
 [security model](security.md).
 
+### Fixed-length cycling mode
+
+When codes must **never grow** — airline-PNR-style, always exactly `L`
+characters — the cycling mode (SPEC §11) keeps the fixed length and, when
+the space is exhausted, refills the *same* space through a **different
+permutation** (cycle 1, cycle 2, …) instead of adding a character. Counter
+`n` lives in cycle `n ÷ rᴸ`; each cycle issues every possible string exactly
+once, in a new key-and-cycle-dependent order.
+
+!!! danger "Codes repeat across cycles — by design"
+
+    Reuse is the whole point, so the usual global `UNIQUE(code)` contract no
+    longer holds across cycles. Keep at most one cycle's codes live per
+    uniqueness scope (retire/expire before rolling over), index as
+    `UNIQUE(cycle, code)`, and persist each live code's cycle — `decode`
+    requires it (`decode(code, cycle)`), because the same string maps to a
+    different counter in every cycle.
+
+Constraints: `2 ≤ L ≤ 128`, `radix^L ≥ 100`, and `radix^L ≤ 2^63` (a cycle
+must be completable within the counter space — for larger fixed shapes use
+plain `min_length == max_length`).
+
 ## The configuration is frozen once shipped
 
 !!! danger "Write-once configuration"

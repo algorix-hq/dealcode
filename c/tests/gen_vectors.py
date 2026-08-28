@@ -3,9 +3,9 @@
 
 Usage: gen_vectors.py <output.inc>
 
-Reads ../../testvectors/{ff1_nist.json,v1.json} relative to this script and
-emits a self-contained C include file with plain positional aggregate
-initializers (valid in both C11 and C++17).
+Reads ../../testvectors/{ff1_nist.json,v1.json,v1c.json} relative to this
+script and emits a self-contained C include file with plain positional
+aggregate initializers (valid in both C11 and C++17).
 """
 
 import json
@@ -49,6 +49,7 @@ def main():
 
     nist = json.loads((VECTORS_DIR / "ff1_nist.json").read_text())
     v1 = json.loads((VECTORS_DIR / "v1.json").read_text())
+    v1c = json.loads((VECTORS_DIR / "v1c.json").read_text())
 
     lines = []
     w = lines.append
@@ -228,10 +229,212 @@ def main():
     w("    (sizeof TV_V1_INVALID_CONFIGS / sizeof TV_V1_INVALID_CONFIGS[0])")
     w("")
 
+    # ---- fixed-length cycling mode (SPEC §11, testvectors/v1c.json) -----
+    w("/* Fixed-length cycling mode (SPEC section 11). All decimal-string")
+    w(" * fields of v1c.json (n, cycle, capacity, max_cycle) fit uint64_t")
+    w(" * by construction (counters < 2^63, capacity <= 2^63); values that")
+    w(" * do not (e.g. \"-1\") are skipped below with a comment. */")
+    w("")
+    w("typedef struct {")
+    w("    uint64_t cycle;")
+    w("    const char *code;")
+    w("} tv_cycle_code_t;")
+    w("")
+    w("typedef struct {")
+    w("    uint64_t cycle;")
+    w("    const char *input;")
+    w("    uint64_t n;")
+    w("} tv_cycle_norm_t;")
+    w("")
+    w("typedef struct {")
+    w("    const char *name;")
+    w("    const char *alphabet;        /* preset name, or the custom chars */")
+    w("    const char *key_hex;         /* bytes rule, or NULL */")
+    w("    const char *key_string;      /* string rule, or NULL */")
+    w("    int length;")
+    w("    const char *domain;")
+    w("    uint64_t capacity;           /* radix^length (may be 2^63) */")
+    w("    uint64_t max_cycle;          /* (2^63 - 1) / capacity */")
+    w("    const tv_pair_t *vectors;")
+    w("    size_t n_vectors;")
+    w("    const tv_cycle_code_t *invalid_codes;")
+    w("    size_t n_invalid_codes;")
+    w("    const tv_cycle_norm_t *normalize;")
+    w("    size_t n_normalize;")
+    w("    const uint64_t *range_counters;  /* encode must ERR_RANGE these */")
+    w("    size_t n_range_counters;")
+    w("    const uint64_t *invalid_cycles;  /* decode must ERR_RANGE these */")
+    w("    size_t n_invalid_cycles;")
+    w("} tv_cycle_config_t;")
+    w("")
+    w("typedef struct {")
+    w("    const char *name;")
+    w("    const char *alphabet;        /* preset name, or the custom chars */")
+    w("    const char *key_hex;         /* bytes rule, or NULL */")
+    w("    const char *key_string;      /* string rule, or NULL */")
+    w("    int length;")
+    w("    const char *domain;          /* NULL = default */")
+    w("} tv_cycle_invalid_config_t;")
+    w("")
+
+    c_configs = v1c["configs"]
+    for i, cfg in enumerate(c_configs):
+        capacity = int(cfg["capacity"])
+        max_cycle = int(cfg["max_cycle"])
+        assert 0 < capacity <= 2**63, cfg["name"]
+        assert 0 <= max_cycle < 2**63, cfg["name"]
+        w("static const tv_pair_t TV_V1C_%d_PAIRS[] = {" % i)
+        for vec in cfg["vectors"]:
+            n = int(vec["n"])
+            assert 0 <= n < 2**63, cfg["name"]
+            w("    { UINT64_C(%d), %s }," % (n, c_str(vec["code"])))
+        w("};")
+        if cfg.get("invalid_codes"):
+            w("static const tv_cycle_code_t TV_V1C_%d_INVALID[] = {" % i)
+            for entry in cfg["invalid_codes"]:
+                cyc = int(entry["cycle"])
+                assert 0 <= cyc <= max_cycle, cfg["name"]
+                w("    { UINT64_C(%d), %s }," % (cyc, c_str(entry["code"])))
+            w("};")
+        if cfg.get("normalize"):
+            w("static const tv_cycle_norm_t TV_V1C_%d_NORM[] = {" % i)
+            for norm in cfg["normalize"]:
+                cyc = int(norm["cycle"])
+                n = int(norm["n"])
+                assert 0 <= cyc <= max_cycle and 0 <= n < 2**63, cfg["name"]
+                w(
+                    "    { UINT64_C(%d), %s, UINT64_C(%d) },"
+                    % (cyc, c_str(norm["input"]), n)
+                )
+            w("};")
+        # range_counters are decimal strings; values not representable in
+        # uint64_t ("-1") cannot even be passed to dealcode_cycle_encode(),
+        # so the C type system covers them — skip them here.
+        range_repr = []
+        range_skipped = []
+        for s in cfg.get("range_counters", []):
+            v = int(s)
+            if 0 <= v < 2**64:
+                range_repr.append(v)
+            else:
+                range_skipped.append(s)
+        if range_repr:
+            if range_skipped:
+                w(
+                    "/* %s: range counters %s skipped: not representable in"
+                    " uint64_t (covered by the type system) */"
+                    % (cfg["name"], ", ".join(range_skipped))
+                )
+            w("static const uint64_t TV_V1C_%d_RANGE[] = {" % i)
+            for v in range_repr:
+                w("    UINT64_C(%d)," % v)
+            w("};")
+        # invalid_cycles: same uint64_t representability rule ("-1" is
+        # unrepresentable and skipped; max_cycle + 1 always fits and MUST
+        # remain covered).
+        cyc_repr = []
+        cyc_skipped = []
+        for s in cfg.get("invalid_cycles", []):
+            v = int(s)
+            if 0 <= v < 2**64:
+                cyc_repr.append(v)
+            else:
+                cyc_skipped.append(s)
+        assert max_cycle + 1 in cyc_repr, cfg["name"]
+        if cyc_repr:
+            if cyc_skipped:
+                w(
+                    "/* %s: invalid cycles %s skipped: not representable in"
+                    " uint64_t (covered by the type system) */"
+                    % (cfg["name"], ", ".join(cyc_skipped))
+                )
+            w("static const uint64_t TV_V1C_%d_BADCYC[] = {" % i)
+            for v in cyc_repr:
+                w("    UINT64_C(%d)," % v)
+            w("};")
+        w("")
+
+    w("static const tv_cycle_config_t TV_V1C[] = {")
+    for i, cfg in enumerate(c_configs):
+        alphabet = cfg["alphabet"]
+        if alphabet == "custom":
+            alphabet = cfg["custom_alphabet"]
+        invalid = (
+            "TV_V1C_%d_INVALID, "
+            "sizeof TV_V1C_%d_INVALID / sizeof (tv_cycle_code_t)" % (i, i)
+            if cfg.get("invalid_codes")
+            else "NULL, 0"
+        )
+        norm = (
+            "TV_V1C_%d_NORM, sizeof TV_V1C_%d_NORM / sizeof (tv_cycle_norm_t)"
+            % (i, i)
+            if cfg.get("normalize")
+            else "NULL, 0"
+        )
+        has_range = any(
+            0 <= int(s) < 2**64 for s in cfg.get("range_counters", [])
+        )
+        rng = (
+            "TV_V1C_%d_RANGE, sizeof TV_V1C_%d_RANGE / sizeof (uint64_t)"
+            % (i, i)
+            if has_range
+            else "NULL, 0"
+        )
+        has_badcyc = any(
+            0 <= int(s) < 2**64 for s in cfg.get("invalid_cycles", [])
+        )
+        badcyc = (
+            "TV_V1C_%d_BADCYC, sizeof TV_V1C_%d_BADCYC / sizeof (uint64_t)"
+            % (i, i)
+            if has_badcyc
+            else "NULL, 0"
+        )
+        w("    { %s, %s," % (c_str(cfg["name"]), c_str(alphabet)))
+        w("      %s, %s," % (c_str(cfg.get("key_hex")), c_str(cfg.get("key_string"))))
+        w("      %d, %s," % (cfg["length"], c_str(cfg["domain"])))
+        w(
+            "      UINT64_C(%d), UINT64_C(%d),"
+            % (int(cfg["capacity"]), int(cfg["max_cycle"]))
+        )
+        w(
+            "      TV_V1C_%d_PAIRS, sizeof TV_V1C_%d_PAIRS / sizeof (tv_pair_t),"
+            % (i, i)
+        )
+        w("      %s," % invalid)
+        w("      %s," % norm)
+        w("      %s," % rng)
+        w("      %s }," % badcyc)
+    w("};")
+    w("#define TV_V1C_COUNT (sizeof TV_V1C / sizeof TV_V1C[0])")
+    w("")
+
+    c_invalid_configs = v1c.get("invalid_configs", [])
+    w("/* Every entry must make cycling construction fail with a config"
+      " error. */")
+    w("static const tv_cycle_invalid_config_t TV_V1C_INVALID_CONFIGS[] = {")
+    for cfg in c_invalid_configs:
+        alphabet = cfg.get("custom_alphabet", cfg.get("alphabet"))
+        assert alphabet is not None, cfg["name"]
+        w("    { %s, %s," % (c_str(cfg["name"]), c_str(alphabet)))
+        w("      %s, %s," % (c_str(cfg.get("key_hex")), c_str(cfg.get("key_string"))))
+        w("      %d, %s }," % (cfg["length"], c_str(cfg.get("domain"))))
+    w("};")
+    w("#define TV_V1C_INVALID_CONFIG_COUNT \\")
+    w("    (sizeof TV_V1C_INVALID_CONFIGS / sizeof TV_V1C_INVALID_CONFIGS[0])")
+    w("")
+
     out_path.write_text("\n".join(lines) + "\n")
     print(
-        "wrote %s (%d NIST vectors, %d v1 configs, %d invalid configs)"
-        % (out_path, len(nist["vectors"]), len(configs), len(invalid_configs))
+        "wrote %s (%d NIST vectors, %d v1 configs, %d invalid configs, "
+        "%d v1c configs, %d v1c invalid configs)"
+        % (
+            out_path,
+            len(nist["vectors"]),
+            len(configs),
+            len(invalid_configs),
+            len(c_configs),
+            len(c_invalid_configs),
+        )
     )
 
 

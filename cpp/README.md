@@ -90,6 +90,46 @@ codec.capacity();    // min(radix^max_length, 2^63)
 codec.min_length(); codec.max_length(); codec.radix(); codec.alphabet();
 ```
 
+## Fixed-length cycling mode
+
+For code shapes that must never grow (airline-PNR-style fixed-length
+codes), [SPEC.md §11](../SPEC.md#11-fixed-length-cycling-mode-v1c) defines
+a cycling mode, wrapped by `dealcode::CycleCodec`: codes are always exactly
+`length` characters, and the counter space `[0, 2^63)` is used in *cycles*
+of `capacity() = radix^length` codes — each cycle refills the same code
+space through a different keyed permutation (a different FF1 tweak,
+namespace `dealcode/v1c/`).
+
+```cpp
+dealcode::CycleOptions opts;
+opts.alphabet = "crockford";
+opts.length = 6;              // 2 <= length <= 128, 100 <= radix^length <= 2^63
+opts.domain = "bookings";
+
+dealcode::CycleCodec codec("example-key", opts);  // same key rules as Codec
+
+uint64_t n = next_counter();                 // e.g. 3000000007
+uint64_t cycle = n / codec.capacity();
+
+std::string code = codec.encode(n);          // always exactly 6 chars
+uint64_t back = codec.decode(code, cycle);   // back == n — cycle is required
+
+codec.capacity();   // codes per cycle: radix^length
+codec.max_cycle();  // largest usable cycle: (2^63 - 1) / capacity()
+```
+
+`encode` throws `RangeError` for `n >= 2^63`; `decode` throws `RangeError`
+for `cycle > max_cycle()` and `InvalidCodeError` for bad codes (including
+codes that would map past `2^63` in the final partial cycle). `CycleCodec`
+has the same move-only/thread-safety semantics as `Codec`.
+
+**Operational rule (SPEC.md §11.3):** codes *repeat* across cycles by
+design. Keep at most one cycle's codes live per uniqueness scope — retire
+or expire cycle `e`'s codes before issuing from cycle `e + 1`, use
+`UNIQUE(cycle, code)` rather than `UNIQUE(code)`, and persist which cycle
+each live code belongs to: `decode` requires it, and the library cannot
+recover the cycle from the code string.
+
 ## Errors
 
 All failures throw exceptions rooted at `dealcode::Error`
@@ -133,7 +173,9 @@ from [`../testvectors/`](../testvectors) (via the C library's
 `gen_vectors.py`) and covers the official NIST FF1 samples, every dealcode
 v1 vector config (including out-of-range counters and invalid configs),
 the preset-name guards, construction diagnostics, exception behaviour,
-move semantics, and roundtrip sweeps across stage boundaries.
+move semantics, and roundtrip sweeps across stage boundaries. Cycling mode
+is covered by every case in `testvectors/v1c.json` plus permutation,
+boundary, moved-from, and exception-type behaviour tests.
 
 ## License
 

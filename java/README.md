@@ -79,6 +79,41 @@ All errors subclass `DealcodeException` (an `IllegalArgumentException`).
 2^63 (e.g. 16-char hex), which doesn't fit a `long` as a count, but its
 maximum always does.
 
+## Fixed-length cycling mode
+
+For code shapes that must **never grow** (airline-PNR-style), `CyclingDealcode`
+keeps a fixed length and uses the counter space in *cycles*: each cycle fills
+the entire `radix^length` code space exactly once, then the next cycle refills
+the *same* space through a different permutation (SPEC §11).
+
+```java
+import io.algorix.dealcode.CyclingDealcode;
+
+CyclingDealcode codec = CyclingDealcode.builder()
+        .key(System.getenv("DEALCODE_KEY"))
+        .alphabet("crockford")
+        .length(6)                     // always exactly 6 chars; 2 <= L <= 128,
+                                       // 100 <= radix^L <= 2^63
+        .domain("bookings")
+        .build();
+
+String code = codec.encode(n);         // cycle is implied: n / capacity
+long cycle = codec.cycleOf(n);         // persist this with the code!
+long back = codec.decode(code, cycle); // == n; the cycle is required
+```
+
+**Operational rule:** codes repeat across cycles by design, so keep at most
+one cycle's codes live per uniqueness scope and store the cycle with each
+code — a global `UNIQUE(code)` index WILL fire; use `UNIQUE(cycle, code)`
+and retire cycle *e*'s codes before issuing from cycle *e + 1*. Decoding
+under a wrong (but in-range) cycle is not an error — it returns a different
+counter — so the stored cycle is the source of truth.
+
+`capacity()` returns a `BigInteger` because the per-cycle capacity may be
+exactly 2^63 (the largest allowed, e.g. an 8-char alphabet at length 21),
+which doesn't fit a signed `long`; `maxCycle()` (= `(2^63 − 1) / capacity`)
+always does.
+
 ## Using it with your database
 
 Dealcode does not talk to your database — it only turns a counter into a code.

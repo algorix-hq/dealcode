@@ -10,6 +10,11 @@ scope; format v1 outputs never change (see SPEC.md).
 Initial release.
 
 ### Specification
+- Fixed-length cycling mode (SPEC §11, tweak namespace `dealcode/v1c/`):
+  PNR-style codes that never grow — when the fixed-length space is
+  exhausted, the next cycle refills the same space through a different
+  permutation. Conformance vectors in `testvectors/v1c.json`; implemented
+  in all seven languages.
 - Format v1: FF1 (NIST SP 800-38G, AES) over configurable alphabets with
   length staging, domain tweaks (`"dealcode/v1/" + domain`), a deterministic
   key rule (16/24/32-byte keys direct; everything else via

@@ -71,7 +71,10 @@ use std::fmt;
 use sha2::{Digest, Sha256};
 
 pub mod alphabets;
+mod cycle;
 mod ff1;
+
+pub use cycle::{CyclingBuilder, CyclingDealcode};
 
 use alphabets::ResolvedAlphabet;
 use ff1::AesCipher;
@@ -99,11 +102,14 @@ pub enum Error {
     /// Raised at construction time only.
     Config(String),
     /// [`Dealcode::encode`] was called with a counter outside
-    /// `[0, capacity)`.
+    /// `[0, capacity)` — or, in cycling mode, [`CyclingDealcode::encode`]
+    /// with a counter at or beyond `2^63`, or
+    /// [`CyclingDealcode::decode`] with a cycle beyond
+    /// [`max_cycle`](CyclingDealcode::max_cycle).
     Range {
-        /// The out-of-range counter.
+        /// The out-of-range counter (or cycle number).
         n: u64,
-        /// The codec's capacity: counters must be `< capacity`.
+        /// The exclusive upper bound the value had to stay below.
         capacity: u64,
     },
     /// [`Dealcode::decode`] input failed length, charset, or stage-range
@@ -675,6 +681,8 @@ fn default_max_length(radix: u128, min_length: usize) -> usize {
 const _: () = {
     const fn assert_send_sync<T: Send + Sync>() {}
     assert_send_sync::<Dealcode>();
+    assert_send_sync::<CyclingDealcode>();
+    assert_send_sync::<CyclingBuilder>();
     assert_send_sync::<Key>();
     assert_send_sync::<Builder>();
     assert_send_sync::<Error>();

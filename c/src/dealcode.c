@@ -24,6 +24,7 @@
 #error "dealcode requires unsigned __int128 (GCC or Clang)"
 #endif
 
+#include <inttypes.h>
 #include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -476,9 +477,11 @@ static int dc_valid_utf8(const uint8_t *s, size_t len)
 }
 
 /* Key material rules (SPEC.md §2.1). Writes 16/24/32 bytes into aes_key.
+ * Shared by the plain and cycling codecs (identical rules, SPEC.md §11.1).
  * Diagnostics never echo key material, except the preset-name guard: a key
  * rejected for *being* a preset alphabet name is not a secret. */
-static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
+static dealcode_err_t dc_resolve_key(const uint8_t *key, size_t key_len,
+                                     const char *key_string,
                                      uint8_t aes_key[32], size_t *aes_key_len,
                                      char *errbuf, size_t errbuf_len)
 {
@@ -486,18 +489,18 @@ static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
     size_t material_len;
     int is_string;
 
-    if (cfg->key != NULL && cfg->key_string != NULL) {
+    if (key != NULL && key_string != NULL) {
         dc_errf(errbuf, errbuf_len,
                 "key: both key bytes and key_string set — set exactly one");
         return DEALCODE_ERR_CONFIG;
     }
-    if (cfg->key != NULL) {
-        material = cfg->key;
-        material_len = cfg->key_len;
+    if (key != NULL) {
+        material = key;
+        material_len = key_len;
         is_string = 0;
-    } else if (cfg->key_string != NULL) {
-        material = (const uint8_t *)cfg->key_string;
-        material_len = strlen(cfg->key_string);
+    } else if (key_string != NULL) {
+        material = (const uint8_t *)key_string;
+        material_len = strlen(key_string);
         if (!dc_valid_utf8(material, material_len)) {
             dc_errf(errbuf, errbuf_len,
                     "key: key_string is not valid UTF-8");
@@ -517,12 +520,12 @@ static dealcode_err_t dc_resolve_key(const dealcode_config_t *cfg,
     if (is_string) {
         /* Swapped-arguments guard (SPEC.md §2.1): a string key that is a
          * preset alphabet name (ASCII-case-insensitively) is rejected. */
-        const char *preset = dc_preset_name_ci(cfg->key_string);
+        const char *preset = dc_preset_name_ci(key_string);
         if (preset != NULL) {
             dc_errf(errbuf, errbuf_len,
                     "string key \"%s\" is a preset alphabet name — did you "
                     "swap the key and alphabet fields?",
-                    cfg->key_string);
+                    key_string);
             return DEALCODE_ERR_CONFIG;
         }
     }
@@ -615,6 +618,26 @@ static dealcode_err_t dc_resolve_alphabet(const char *alphabet,
     return DEALCODE_OK;
 }
 
+/* Domain rules (SPEC.md §2, reused verbatim by cycling mode, §11.1):
+ * at most 255 UTF-8 bytes of valid UTF-8. Writes the byte length. */
+static dealcode_err_t dc_check_domain(const char *domain, size_t *len_out,
+                                      char *errbuf, size_t errbuf_len)
+{
+    const size_t domain_len = strlen(domain);
+    if (domain_len > DC_MAX_DOMAIN) {
+        dc_errf(errbuf, errbuf_len,
+                "domain exceeds %d UTF-8 bytes (got %zu)", DC_MAX_DOMAIN,
+                domain_len);
+        return DEALCODE_ERR_CONFIG;
+    }
+    if (!dc_valid_utf8((const uint8_t *)domain, domain_len)) {
+        dc_errf(errbuf, errbuf_len, "domain: not valid UTF-8");
+        return DEALCODE_ERR_CONFIG;
+    }
+    *len_out = domain_len;
+    return DEALCODE_OK;
+}
+
 /* Default max_length: the largest L with radix^L <= 2^63 - 1, but never
  * below min_length. q tracks radix^L - 1 (always representable). */
 static int dc_default_max_length(unsigned radix, int min_length, u128 q_min)
@@ -653,7 +676,8 @@ dealcode_err_t dealcode_new_ex(const dealcode_config_t *cfg, dealcode_t **out,
     uint8_t aes_key[32];
     size_t aes_key_len = 0;
     dealcode_err_t err =
-        dc_resolve_key(cfg, aes_key, &aes_key_len, errbuf, errbuf_len);
+        dc_resolve_key(cfg->key, cfg->key_len, cfg->key_string, aes_key,
+                       &aes_key_len, errbuf, errbuf_len);
     if (err != DEALCODE_OK)
         return err;
 
@@ -718,19 +742,10 @@ dealcode_err_t dealcode_new_ex(const dealcode_config_t *cfg, dealcode_t **out,
     }
 
     const char *domain = cfg->domain == NULL ? "" : cfg->domain;
-    const size_t domain_len = strlen(domain);
-    if (domain_len > DC_MAX_DOMAIN) {
-        dc_errf(errbuf, errbuf_len,
-                "domain exceeds %d UTF-8 bytes (got %zu)", DC_MAX_DOMAIN,
-                domain_len);
-        err = DEALCODE_ERR_CONFIG;
+    size_t domain_len = 0;
+    err = dc_check_domain(domain, &domain_len, errbuf, errbuf_len);
+    if (err != DEALCODE_OK)
         goto wipe_key;
-    }
-    if (!dc_valid_utf8((const uint8_t *)domain, domain_len)) {
-        dc_errf(errbuf, errbuf_len, "domain: not valid UTF-8");
-        err = DEALCODE_ERR_CONFIG;
-        goto wipe_key;
-    }
 
     dealcode_t *dc = calloc(1, sizeof *dc);
     if (dc == NULL) {
@@ -902,6 +917,274 @@ int dealcode_radix(const dealcode_t *dc)
 }
 
 const char *dealcode_alphabet(const dealcode_t *dc)
+{
+    return dc == NULL ? NULL : dc->alphabet;
+}
+
+/* ====================================================================== */
+/* Fixed-length cycling mode (SPEC.md §11)                                */
+/* ====================================================================== */
+
+#define DC_CYCLE_TWEAK_PREFIX "dealcode/v1c/"
+#define DC_CYCLE_TWEAK_PREFIX_LEN 13
+#define TWO63_U64 (UINT64_C(1) << 63)
+
+/* The cycling tweak is "dealcode/v1c/" + decimal(cycle) + "/" + domain:
+ * 13 prefix bytes + at most 20 decimal digits (uint64_t; cycle <= 2^63 - 1
+ * actually needs only 19) + 1 separator + at most 255 domain bytes + NUL
+ * = at most 290 bytes including the terminator (SPEC.md §11.2 puts the
+ * tweak proper at <= 288 bytes). Sized 304 for headroom. This is the only
+ * fixed-size tweak buffer anywhere in the core: the FF1 seam takes the
+ * tweak by pointer and sizes its Q block dynamically from tweak_len. */
+#define DC_CYCLE_TWEAK_MAX 304
+
+struct dealcode_cycle_st {
+    dealcode_ff1_t ff1;
+    char alphabet[95]; /* up to 94 chars + NUL */
+    unsigned radix;
+    int length;
+    dc_norm_t norm;
+    int16_t index[256];              /* char -> numeral, or -1 */
+    char domain[DC_MAX_DOMAIN + 1];  /* NUL-terminated */
+    uint64_t capacity;               /* radix^length; may be exactly 2^63 */
+    uint64_t max_cycle;              /* (2^63 - 1) / capacity */
+};
+
+/* Renders the per-cycle tweak (never longer than DC_CYCLE_TWEAK_MAX - 1;
+ * see the arithmetic above) and returns its byte length. */
+static size_t dc_cycle_tweak(const dealcode_cycle_t *dc, uint64_t cycle,
+                             uint8_t tweak[DC_CYCLE_TWEAK_MAX])
+{
+    const int len = snprintf((char *)tweak, DC_CYCLE_TWEAK_MAX,
+                             DC_CYCLE_TWEAK_PREFIX "%" PRIu64 "/%s", cycle,
+                             dc->domain);
+    return (size_t)len;
+}
+
+dealcode_err_t dealcode_cycle_new_ex(const dealcode_cycle_config_t *cfg,
+                                     dealcode_cycle_t **out,
+                                     char *errbuf, size_t errbuf_len)
+{
+    if (errbuf != NULL && errbuf_len > 0)
+        errbuf[0] = '\0';
+    if (out == NULL) {
+        dc_errf(errbuf, errbuf_len, "out: NULL");
+        return DEALCODE_ERR_CONFIG;
+    }
+    *out = NULL;
+    if (cfg == NULL) {
+        dc_errf(errbuf, errbuf_len, "cfg: NULL");
+        return DEALCODE_ERR_CONFIG;
+    }
+
+    /* Same key rules and preset-name guard as the plain codec (§11.1). */
+    uint8_t aes_key[32];
+    size_t aes_key_len = 0;
+    dealcode_err_t err =
+        dc_resolve_key(cfg->key, cfg->key_len, cfg->key_string, aes_key,
+                       &aes_key_len, errbuf, errbuf_len);
+    if (err != DEALCODE_OK)
+        return err;
+
+    /* Same alphabet rules and preset-name-in-disguise guard (§11.1). */
+    const char *chars = NULL;
+    dc_norm_t norm = NORM_NONE;
+    err = dc_resolve_alphabet(cfg->alphabet, &chars, &norm, errbuf,
+                              errbuf_len);
+    if (err != DEALCODE_OK)
+        goto wipe_key;
+    const unsigned radix = (unsigned)strlen(chars);
+
+    /* Bound the length BEFORE computing any power (SPEC.md §11.1). */
+    const int length = cfg->length == 0 ? 6 : cfg->length;
+    if (length < 2) {
+        dc_errf(errbuf, errbuf_len, "length %d < 2", cfg->length);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+    if (length > DC_MAX_LENGTH) {
+        dc_errf(errbuf, errbuf_len, "length %d > %d", length, DC_MAX_LENGTH);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+    /* capacity = radix^length, grown in u128 with an early bail: c <= 2^63
+     * before each step and radix <= 94, so c * radix < 2^70 — never any
+     * u128 overflow. Exactly 2^63 is legal (a cycle just fills the whole
+     * counter space); one past it is not. */
+    u128 c = 1;
+    for (int d = 0; d < length; d++) {
+        c *= radix;
+        if (c > TWO63) {
+            dc_errf(errbuf, errbuf_len,
+                    "radix^length (%u^%d) exceeds 2^63 in cycling mode — a "
+                    "cycle must be completable; use min_length == max_length "
+                    "for larger fixed spaces",
+                    radix, length);
+            err = DEALCODE_ERR_CONFIG;
+            goto wipe_key;
+        }
+    }
+    if (c < 100) { /* below FF1's minimum domain */
+        dc_errf(errbuf, errbuf_len,
+                "radix^length (%u^%d) is below FF1's minimum code space "
+                "of 100",
+                radix, length);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+
+    /* Same domain rules as the plain codec (§11.1). */
+    const char *domain = cfg->domain == NULL ? "" : cfg->domain;
+    size_t domain_len = 0;
+    err = dc_check_domain(domain, &domain_len, errbuf, errbuf_len);
+    if (err != DEALCODE_OK)
+        goto wipe_key;
+
+    dealcode_cycle_t *dc = calloc(1, sizeof *dc);
+    if (dc == NULL) {
+        dc_errf(errbuf, errbuf_len, "out of memory");
+        err = DEALCODE_ERR_NOMEM;
+        goto wipe_key;
+    }
+
+    err = dealcode_ff1_init(&dc->ff1, aes_key, aes_key_len, radix);
+    if (err != DEALCODE_OK) {
+        dc_errf(errbuf, errbuf_len, "internal: FF1 initialization failed");
+        OPENSSL_cleanse(dc, sizeof *dc);
+        free(dc);
+        goto wipe_key;
+    }
+
+    memcpy(dc->alphabet, chars, radix);
+    dc->alphabet[radix] = '\0';
+    dc->radix = radix;
+    dc->length = length;
+    dc->norm = norm;
+    for (int i = 0; i < 256; i++)
+        dc->index[i] = -1;
+    for (unsigned i = 0; i < radix; i++)
+        dc->index[(unsigned char)chars[i]] = (int16_t)i;
+    memcpy(dc->domain, domain, domain_len); /* calloc zeroed the NUL */
+    dc->capacity = (uint64_t)c; /* radix^length <= 2^63: fits uint64_t */
+    dc->max_cycle = (TWO63_U64 - 1) / dc->capacity;
+
+    OPENSSL_cleanse(aes_key, sizeof aes_key);
+    *out = dc;
+    return DEALCODE_OK;
+
+wipe_key:
+    OPENSSL_cleanse(aes_key, sizeof aes_key);
+    return err;
+}
+
+dealcode_err_t dealcode_cycle_new(const dealcode_cycle_config_t *cfg,
+                                  dealcode_cycle_t **out)
+{
+    return dealcode_cycle_new_ex(cfg, out, NULL, 0);
+}
+
+void dealcode_cycle_free(dealcode_cycle_t *dc)
+{
+    if (dc == NULL)
+        return;
+    OPENSSL_cleanse(dc, sizeof *dc); /* wipe key material */
+    free(dc);
+}
+
+dealcode_err_t dealcode_cycle_encode(const dealcode_cycle_t *dc, uint64_t n,
+                                     char *out, size_t out_size)
+{
+    if (dc == NULL)
+        return DEALCODE_ERR_CONFIG;
+    if (n >= TWO63_U64)
+        return DEALCODE_ERR_RANGE;
+    if (out == NULL || out_size < (size_t)dc->length + 1)
+        return DEALCODE_ERR_BUFFER;
+
+    const uint64_t cycle = n / dc->capacity;
+    const uint64_t v = n % dc->capacity;
+
+    uint8_t tweak[DC_CYCLE_TWEAK_MAX];
+    const size_t tweak_len = dc_cycle_tweak(dc, cycle, tweak);
+
+    uint8_t plain[DC_MAX_LENGTH] = { 0 }, cipher[DC_MAX_LENGTH] = { 0 };
+    ff1_str((u128)v, dc->radix, (size_t)dc->length, plain);
+    const dealcode_err_t err =
+        dealcode_ff1_encrypt(&dc->ff1, tweak, tweak_len, plain,
+                             (size_t)dc->length, cipher);
+    if (err != DEALCODE_OK)
+        return err;
+    for (int i = 0; i < dc->length; i++)
+        out[i] = dc->alphabet[cipher[i]];
+    out[dc->length] = '\0';
+    return DEALCODE_OK;
+}
+
+dealcode_err_t dealcode_cycle_decode(const dealcode_cycle_t *dc,
+                                     const char *code, uint64_t cycle,
+                                     uint64_t *n_out)
+{
+    if (dc == NULL || n_out == NULL)
+        return DEALCODE_ERR_CONFIG;
+    if (cycle > dc->max_cycle)
+        return DEALCODE_ERR_RANGE;
+    if (code == NULL)
+        return DEALCODE_ERR_INVALID_CODE;
+
+    /* Length gate BEFORE normalization (SPEC.md §7 via §11.2). */
+    if (strlen(code) != (size_t)dc->length)
+        return DEALCODE_ERR_INVALID_CODE;
+
+    uint8_t cipher[DC_MAX_LENGTH] = { 0 }, plain[DC_MAX_LENGTH] = { 0 };
+    for (int i = 0; i < dc->length; i++) {
+        const char ch = dc_norm_char(code[i], dc->norm);
+        const int16_t idx = dc->index[(unsigned char)ch];
+        if (idx < 0)
+            return DEALCODE_ERR_INVALID_CODE;
+        cipher[i] = (uint8_t)idx;
+    }
+
+    uint8_t tweak[DC_CYCLE_TWEAK_MAX];
+    const size_t tweak_len = dc_cycle_tweak(dc, cycle, tweak);
+    const dealcode_err_t err =
+        dealcode_ff1_decrypt(&dc->ff1, tweak, tweak_len, cipher,
+                             (size_t)dc->length, plain);
+    if (err != DEALCODE_OK)
+        return err;
+
+    /* v < radix^length <= 2^63; cycle * capacity <= 2^63 - 1 (cycle is at
+     * most max_cycle), so n < 2^64 — but do the sum in u128 anyway and
+     * gate on the counter space, which can only fail in the final partial
+     * cycle. */
+    const u128 v = ff1_num(plain, (size_t)dc->length, dc->radix);
+    const u128 n = (u128)cycle * dc->capacity + v;
+    if (n >= TWO63)
+        return DEALCODE_ERR_INVALID_CODE; /* not issued in this cycle */
+    *n_out = (uint64_t)n;
+    return DEALCODE_OK;
+}
+
+uint64_t dealcode_cycle_capacity(const dealcode_cycle_t *dc)
+{
+    return dc == NULL ? 0 : dc->capacity;
+}
+
+uint64_t dealcode_cycle_max_cycle(const dealcode_cycle_t *dc)
+{
+    return dc == NULL ? 0 : dc->max_cycle;
+}
+
+int dealcode_cycle_length(const dealcode_cycle_t *dc)
+{
+    return dc == NULL ? 0 : dc->length;
+}
+
+int dealcode_cycle_radix(const dealcode_cycle_t *dc)
+{
+    return dc == NULL ? 0 : (int)dc->radix;
+}
+
+const char *dealcode_cycle_alphabet(const dealcode_cycle_t *dc)
 {
     return dc == NULL ? NULL : dc->alphabet;
 }

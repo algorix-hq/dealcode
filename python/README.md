@@ -116,6 +116,28 @@ invisible — codes look random anyway.
 If the `UNIQUE` constraint on `code` ever fires, do not retry: it means the
 key/config changed for an existing namespace. Investigate.
 
+## Fixed-length cycling mode
+
+For code shapes that must never grow — airline-PNR-style fixed-length codes —
+`CyclingDealcode` (SPEC §11) fills the entire fixed-length space, and when it
+is exhausted refills the *same* space through a different permutation instead
+of adding a character:
+
+```python
+from dealcode import CyclingDealcode
+
+pnr = CyclingDealcode(key, "crockford", length=6, domain="bookings")
+
+code = pnr.encode(n)              # always exactly 6 chars; cycle = n // pnr.capacity
+n = pnr.decode(code, cycle=3)     # the cycle is required context
+```
+
+Codes **repeat across cycles** (the space is being reused — that's the
+point), so keep at most one cycle's codes live per uniqueness scope: retire
+or expire cycle `e` before issuing from `e+1`, index with
+`UNIQUE(cycle, code)` rather than `UNIQUE(code)`, and store each live code's
+cycle — `decode` needs it.
+
 ## Thread safety & performance
 
 A `Dealcode` instance is immutable and thread-safe; create one per namespace at

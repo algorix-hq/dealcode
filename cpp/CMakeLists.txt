@@ -89,6 +89,7 @@ if(DEALCODE_BUILD_TESTS)
         DEPENDS ${DEALCODE_C_DIR}/tests/gen_vectors.py
                 ${CMAKE_CURRENT_SOURCE_DIR}/../testvectors/ff1_nist.json
                 ${CMAKE_CURRENT_SOURCE_DIR}/../testvectors/v1.json
+                ${CMAKE_CURRENT_SOURCE_DIR}/../testvectors/v1c.json
         COMMENT "Generating test vectors")
     add_custom_target(dealcode_vectors DEPENDS ${VECTORS_INC})
 

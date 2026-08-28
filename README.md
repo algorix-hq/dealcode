@@ -84,7 +84,11 @@ Dealcode(key, "!@#$%^&*")                          # your own alphabet, why not
 - **`domain`** — namespaces. One key, unrelated code streams for `"orders"`,
   `"coupons"`, `"invites"`.
 - **`min_length` / `max_length`** — starting and maximum code length.
-  Equal values give fixed-length codes.
+  Equal values give fixed-length codes. Need fixed-length codes that *never*
+  grow, PNR-style? The cycling mode (`CyclingDealcode`, SPEC §11) refills
+  the same space through a different permutation each cycle instead of
+  adding a character — codes repeat across cycles, so scope uniqueness per
+  cycle.
 - **`key`** — raw AES key bytes (16/24/32) or *any* string/bytes
   (hex from `openssl rand -hex 32`, a passphrase, a KMS blob); non-AES-sized
   material is deterministically expanded, identically in every language.

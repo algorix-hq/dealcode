@@ -114,6 +114,36 @@ invisible — codes look random anyway.
 If the `UNIQUE` constraint on `code` ever fires, do not retry: it means the
 key/config changed for an existing namespace. Investigate.
 
+## Fixed-length cycling mode
+
+For code shapes that must **never grow** (airline-PNR-style), `CyclingDealcode`
+issues codes that are always exactly `length` characters. The counter space is
+spent in cycles of `capacity() = radix^length` codes each; when a cycle is
+exhausted, the next cycle refills the *same* code space through a different
+permutation (SPEC §11).
+
+```rust
+use dealcode::CyclingDealcode;
+
+let pnr = CyclingDealcode::builder("your-secret-key")
+    .alphabet("crockford")
+    .length(6)
+    .domain("bookings")
+    .build()?;
+// counter n belongs to cycle n / pnr.capacity()
+let code = pnr.encode(n)?;          // always exactly 6 characters
+let cycle = pnr.cycle_of(n)?;       // store this next to the code!
+assert_eq!(pnr.decode(&code, cycle)?, n); // the cycle is required
+# Ok::<(), dealcode::Error>(())
+```
+
+**Operational rule:** codes *repeat* across cycles by design, so a global
+`UNIQUE(code)` index spanning cycles WILL fire — scope uniqueness as
+`UNIQUE(cycle, code)`, keep at most one cycle's codes live at a time per scope
+(retire or expire cycle `e` before issuing from `e+1`), and persist each live
+code's cycle (or the currently active cycle): `decode` needs it, and the
+library cannot recover the cycle from the code string.
+
 ## Thread safety & performance
 
 A `Dealcode` instance is immutable and `Send + Sync`; create one per namespace

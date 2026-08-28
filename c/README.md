@@ -102,6 +102,48 @@ See `include/dealcode.h` for the full, documented API:
 Errors are explicit `dealcode_err_t` return codes; on failure nothing is
 written to output parameters (except `*out = NULL` in `dealcode_new`).
 
+## Fixed-length cycling mode
+
+For code shapes that must never grow (airline-PNR-style fixed-length
+codes), [SPEC.md §11](../SPEC.md#11-fixed-length-cycling-mode-v1c) defines
+a cycling mode: codes are always exactly `length` characters, and the
+counter space `[0, 2^63)` is used in *cycles* of `capacity = radix^length`
+codes — each cycle refills the same code space through a different keyed
+permutation (a different FF1 tweak, namespace `dealcode/v1c/`).
+
+```c
+dealcode_cycle_config_t cfg = {0};
+cfg.key_string = "example-key";   /* same key rules as dealcode_config_t  */
+cfg.alphabet   = "crockford";     /* same alphabet rules                  */
+cfg.length     = 6;               /* fixed code length; 0 selects 6       */
+cfg.domain     = "bookings";
+
+dealcode_cycle_t *dc = NULL;
+dealcode_cycle_new(&cfg, &dc);    /* or dealcode_cycle_new_ex for errbuf  */
+
+uint64_t n = /* counter from your sequence */ 3000000007ULL;
+uint64_t cycle = n / dealcode_cycle_capacity(dc);
+
+char code[DEALCODE_MAX_CODE_SIZE];
+dealcode_cycle_encode(dc, n, code, sizeof code);   /* always 6 chars */
+
+uint64_t back;
+dealcode_cycle_decode(dc, code, cycle, &back);     /* back == n */
+
+dealcode_cycle_free(dc);
+```
+
+Constraints: `2 <= length <= 128`, `radix^length >= 100`, and
+`radix^length <= 2^63` (a cycle must be completable; for larger fixed
+spaces use the plain codec with `min_length == max_length`).
+
+**Operational rule (SPEC.md §11.3):** codes *repeat* across cycles by
+design. Keep at most one cycle's codes live per uniqueness scope — retire
+or expire cycle `e`'s codes before issuing from cycle `e + 1`, use
+`UNIQUE(cycle, code)` rather than `UNIQUE(code)`, and persist which cycle
+each live code belongs to: `dealcode_cycle_decode` requires it, and the
+library cannot recover the cycle from the code string.
+
 ## Database integration
 
 dealcode only needs a never-repeating integer, which your database already
@@ -129,7 +171,10 @@ config (encode/decode pairs, invalid codes, normalization, out-of-range
 counters), every invalid-config vector, the preset-name guards for alphabets
 and string keys, `dealcode_new_ex` diagnostics, error behaviour, and large
 roundtrip sweeps across stage boundaries — including configurations where
-`radix^max_length` is exactly `2^128`.
+`radix^max_length` is exactly `2^128`. Cycling mode is covered by every
+case in `testvectors/v1c.json` (vectors, invalid codes/cycles, normalize,
+range counters, invalid configs) plus permutation, final-partial-cycle,
+tweak-namespace, and maximum-tweak-length behaviour tests.
 
 ## License
 
