@@ -1,0 +1,40 @@
+# Publish the npm package via Trusted Publishing (OIDC).
+#
+# Prerequisite: a Trusted Publisher configured on npmjs.com for the
+# "dealcode" package: GitHub Actions, algorix-hq/dealcode,
+# workflow publish-npm.yml, environment npm. (npm requires the package to
+# exist before this can be configured — the first release is published
+# manually with `npm publish` from a logged-in machine.)
+#
+# Trigger: MANUAL ONLY (workflow_dispatch) — run from the Actions tab or
+# `gh workflow run publish-npm.yml` after the release commit is on main.
+name: publish-npm
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: npm
+      url: https://www.npmjs.com/package/dealcode
+    permissions:
+      contents: read
+      id-token: write  # OIDC token for npm Trusted Publishing (+ provenance)
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"  # bundles npm >= 11.5.1, required for OIDC
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+      - run: npm ci
+        working-directory: js
+      # prepublishOnly runs clean + build + the full test suite
+      - run: npm publish
+        working-directory: js
