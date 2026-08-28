@@ -45,9 +45,10 @@
 | C | [`c/`](c/) | `make install` / 벤더링 (GCC/Clang: `__int128` 필요) | OpenSSL libcrypto |
 | C++ | [`cpp/`](cpp/) | CMake (C 코어 래핑) | OpenSSL libcrypto |
 
-> 레지스트리 패키지(PyPI/npm/Maven Central/crates.io)는 **아직 미출판**
-> 상태입니다 — v1.0.0 릴리스 준비 중. 그때까지는 각 디렉터리 README의
-> 소스 설치 방법을 사용하세요. Go 모듈은 이 저장소에서 바로 받아집니다.
+> [PyPI](https://pypi.org/project/dealcode/)는 출시됐습니다(v1.0.0). Go
+> 모듈은 이 저장소에서 바로 받아집니다. npm, Maven Central, crates.io는
+> **출시 준비 중**이며, 그때까지는 해당 디렉터리 README의 소스 설치
+> 방법을 사용하세요.
 
 그 외 의존성은 의도적으로 0입니다. FF1과 dealcode 레이어는 각 언어에서
 NIST 명세로부터 직접 구현했고, NIST 공식 샘플 벡터와 이 레포의 공유

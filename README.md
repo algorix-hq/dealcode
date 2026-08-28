@@ -45,10 +45,10 @@ bit-identical.
 | C        | [`c/`](c/) | `make install` / vendored (GCC/Clang: needs `__int128`) | OpenSSL libcrypto |
 | C++      | [`cpp/`](cpp/) | CMake (wraps the C core) | OpenSSL libcrypto |
 
-> Registry packages (PyPI/npm/Maven Central/crates.io) are **not published
-> yet** — v1.0.0 releases are pending. Until then each directory's README
-> shows how to consume from source; Go modules already resolve from this
-> repository.
+> [PyPI](https://pypi.org/project/dealcode/) is live (v1.0.0); Go modules
+> resolve from this repository. npm, Maven Central, and crates.io releases
+> are **pending** — until then those directories' READMEs show how to
+> consume from source.
 
 Everything else is dependency-free by design: FF1 and the dealcode layer are
 implemented from the NIST specification in each language and validated against
