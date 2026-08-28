@@ -284,7 +284,10 @@ a value unrepresentable in the language's counter type (e.g. `-1` or `2^64`
 for `uint64`) counts as rejected by the type system. Every entry of the
 top-level `invalid_configs[]` must fail construction (`ConfigError`).
 
-Passing both files is the definition of conformance.
+Passing both files is the definition of conformance for the core codec.
+Additionally, `testvectors/v1c.json` covers the fixed-length cycling mode
+(§11) — required for implementations that ship the mode (§11.4); all seven
+in this repository do.
 
 ## 10. Security model (informative)
 
@@ -323,8 +326,8 @@ preset-name guard), `alphabet` (§3, same rules and guards), a single fixed
 `length` `L` (default `6`), and `domain` (same rules as §2). Constraints,
 all `ConfigError` at construction:
 
-- `2 ≤ L ≤ 128` and `radix^L ≥ 100` (FF1 structural minimum), checked in
-  O(1) before any power is computed;
+- `2 ≤ L ≤ 128` (checked before any power is computed, so absurd lengths
+  are rejected in O(1)) and `radix^L ≥ 100` (FF1 structural minimum);
 - `radix^L ≤ 2^63` — the per-cycle capacity `C = radix^L` must itself fit
   the counter space, otherwise a cycle could never complete and plain v1
   with `min_length = max_length = L` is the right tool.
@@ -380,6 +383,9 @@ Normalization (§3.1) applies exactly as in plain v1.
 `vectors[]` entries are `{n, code}` with `cycle(n)` implied by `n`;
 conforming implementations must produce `code` for every `n`, decode it back
 under `cycle(n)`, reject every `invalid_codes[]` entry for the cycle it
-names, reject every `range_counters[]` value, and fail construction for
-every `invalid_configs[]` entry. Passing it is required for conformance of
-any implementation that ships the mode, and all seven in this repository do.
+names (`InvalidCodeError`), accept every `normalize[]` input as its `n`
+under its cycle, reject every `range_counters[]` value (`RangeError`),
+reject every `invalid_cycles[]` value when passed as the cycle to decode
+(`RangeError`), and fail construction for every `invalid_configs[]` entry
+(`ConfigError`). Passing it is required for conformance of any
+implementation that ships the mode, and all seven in this repository do.

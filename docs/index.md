@@ -76,6 +76,7 @@ Dealcode(key, "crockford", domain="coupons")       # e.g. 'ZV6NQ0' — human-fri
 Dealcode(key, "dec",       domain="orders")        # e.g. '839207' — digits only
 Dealcode(key, "base62",    min_length=8)           # e.g. 'tHx93bQk'
 Dealcode(key, "hex", min_length=16, max_length=16) # fixed-length tokens
+CyclingDealcode(key, "crockford", length=6)        # fixed forever — reuses the space per cycle (see guide)
 Dealcode(key, "!@#$%^&*")                          # your own alphabet, why not
 ```
 

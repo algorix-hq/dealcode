@@ -40,6 +40,7 @@ codec.decodeNumber(code);        // 1   (number; MAX_SAFE_INTEGER 초과 시 thr
 | `codec.encode(n)` | `number` 또는 `bigint`; 범위 밖이면 `CounterRangeError` |
 | `codec.decode(code) -> bigint` / `codec.decodeNumber(code) -> number` | 형식이 잘못된 입력이면 `InvalidCodeError` |
 | 읽기 전용 프로퍼티 | `alphabet`, `radix`, `minLength`, `maxLength`, `domain`, `capacity` (bigint) |
+| `new CyclingDealcode({ key, alphabet, length, domain })` + `cycleOf(n)` | 고정 길이 순환 모드, SPEC §11 — [설정 가이드](../guide/configuration.ko.md#fixed-length-cycling-mode) 참고 |
 | export | 프리셋 알파벳 문자열 `ALPHABETS`; 에러는 `DealcodeError` 확장(`ConfigError`, `CounterRangeError`, `InvalidCodeError`) |
 
 ## 테스트

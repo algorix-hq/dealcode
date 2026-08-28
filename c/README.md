@@ -98,6 +98,9 @@ See `include/dealcode.h` for the full, documented API:
 - `dealcode_capacity`, `dealcode_min_length`, `dealcode_max_length`,
   `dealcode_radix`, `dealcode_alphabet` — introspection.
 - `dealcode_strerror` — human-readable error descriptions.
+- `dealcode_cycle_new` / `dealcode_cycle_new_ex` / `dealcode_cycle_free`,
+  `dealcode_cycle_encode` / `dealcode_cycle_decode`, and the matching
+  introspection accessors — the fixed-length cycling mode (see below).
 
 Errors are explicit `dealcode_err_t` return codes; on failure nothing is
 written to output parameters (except `*out = NULL` in `dealcode_new`).
@@ -142,7 +145,10 @@ design. Keep at most one cycle's codes live per uniqueness scope — retire
 or expire cycle `e`'s codes before issuing from cycle `e + 1`, use
 `UNIQUE(cycle, code)` rather than `UNIQUE(code)`, and persist which cycle
 each live code belongs to: `dealcode_cycle_decode` requires it, and the
-library cannot recover the cycle from the code string.
+library cannot recover the cycle from the code string. Decoding with a
+wrong (but in-range) cycle is *not* an error — it silently returns a
+different counter; the existence check on the decoded counter is what
+catches it.
 
 ## Database integration
 

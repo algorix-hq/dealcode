@@ -68,6 +68,12 @@ outside `[0, codec.capacity)`, and construction mistakes (bad key, alphabet,
 lengths, domain) raise `ConfigError`. All errors subclass `DealcodeError`
 (a `ValueError`).
 
+Preset alphabets normalize obvious typing variants before decoding — `hex`
+is case-insensitive, and `crockford` also folds `O → 0` and `I`/`L` → `1` —
+but normalization never *strips* anything: separators and whitespace are not
+removed. If you display codes grouped (`XXXX-XXXX`), strip the hyphens or
+spaces in your app before calling `decode`.
+
 ## Using it with your database
 
 Dealcode does not talk to your database — it only turns a counter into a code.
@@ -129,14 +135,20 @@ from dealcode import CyclingDealcode
 pnr = CyclingDealcode(key, "crockford", length=6, domain="bookings")
 
 code = pnr.encode(n)              # always exactly 6 chars; cycle = n // pnr.capacity
+cycle = pnr.cycle_of(n)           # which cycle a counter belongs to — store it with the code
 n = pnr.decode(code, cycle=3)     # the cycle is required context
 ```
+
+Configuration mirrors `Dealcode` (key, alphabet, domain) with a single fixed
+`length`: `2 <= length <= 128` and `100 <= radix**length <= 2**63`.
 
 Codes **repeat across cycles** (the space is being reused — that's the
 point), so keep at most one cycle's codes live per uniqueness scope: retire
 or expire cycle `e` before issuing from `e+1`, index with
 `UNIQUE(cycle, code)` rather than `UNIQUE(code)`, and store each live code's
-cycle — `decode` needs it.
+cycle — `decode` needs it. Decoding with a wrong (but in-range) cycle is
+*not* an error — it silently returns a different counter; the existence
+check on the decoded counter is what catches it.
 
 ## Thread safety & performance
 

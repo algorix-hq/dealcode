@@ -40,6 +40,7 @@ codec.Decode("421163") // 1, nil
 | `dealcode.New(dealcode.Config{...}) (*Codec, error)` | `Key []byte` or `KeyString string` (exactly one), `Alphabet`, `MinLength`, `MaxLength`, `Domain`; zero values select spec defaults |
 | `codec.Encode(n int64) (string, error)` | error wraps `ErrRange` outside `[0, codec.Capacity())` |
 | `codec.Decode(code string) (int64, error)` | error wraps `ErrInvalidCode` for malformed input |
+| `dealcode.NewCycling(dealcode.CyclingConfig{...}) (*CycleCodec, error)` + `CycleOf(n)` | fixed-length cycling mode, SPEC §11 — see [the configuration guide](../guide/configuration.md#fixed-length-cycling-mode) |
 | Errors | sentinel values `ErrConfig`, `ErrRange`, `ErrInvalidCode` — classify with `errors.Is` |
 
 A `Codec` is immutable and safe for concurrent use by multiple goroutines

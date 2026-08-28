@@ -83,6 +83,12 @@ check or your own check digit). `encode` throws `CounterRangeError` outside
 `bigint` for large counters). Configuration mistakes throw `ConfigError` at
 construction. All errors extend `DealcodeError`.
 
+Preset alphabets normalize obvious typing variants before decoding — `hex`
+is case-insensitive, and `crockford` also folds `O → 0` and `I`/`L` → `1` —
+but normalization never *strips* anything: separators and whitespace are not
+removed. If you display codes grouped (`XXXX-XXXX`), strip the hyphens or
+spaces in your app before calling `decode`.
+
 ## Using it with your database
 
 Dealcode does not talk to your database — it only turns a counter into a code.
@@ -153,7 +159,8 @@ pnr.cycleOf(n);                  // which cycle a counter belongs to (bigint)
 ```
 
 Configuration is `key`, `alphabet`, and `domain` as for `Dealcode`, plus a
-single fixed `length` (default 6) with `radix^length` between 100 and 2^63.
+single fixed `length` (default 6, allowed 2 – 128) with `radix^length`
+between 100 and 2^63.
 Read-only properties: `alphabet`, `radix`, `length`, `domain`, `capacity`
 (codes per cycle, `radix^length`, a `bigint`) and `maxCycle` (a `bigint`).
 Counters still live in `[0, 2^63)`; a cycle out of `[0, maxCycle]` throws
@@ -163,7 +170,9 @@ Codes **repeat across cycles** (the space is being reused — that's the
 point), so keep at most one cycle's codes live per uniqueness scope: retire
 or expire cycle `e` before issuing from `e+1`, index with
 `UNIQUE(cycle, code)` rather than `UNIQUE(code)`, and store each live code's
-cycle — `decode` needs it.
+cycle — `decode` needs it. Decoding with a wrong (but in-range) cycle is
+*not* an error — it silently returns a different counter; the existence
+check on the decoded counter is what catches it.
 
 ## Keys
 

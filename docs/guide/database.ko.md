@@ -184,6 +184,25 @@ MySQL 등은 `AUTO_INCREMENT`/identity 컬럼으로 같은 패턴을 쓰면 됩�
     울렸다면 **재시도하지 말고** 조사하세요. 재시도는 계속 충돌할 설정
     실수를 덮을 뿐입니다.
 
+!!! note "순환 모드에서는 스키마가 달라집니다"
+
+    위 내용은 기본(길이가 늘어나는) 모드 기준입니다.
+    [고정 길이 순환 모드](configuration.ko.md#fixed-length-cycling-mode)에서는
+    코드가 **설계상 사이클마다 반복**되므로, 전역 `UNIQUE(code)`는 롤오버
+    때마다 울리는 잘못된 계약입니다. 코드 옆에 사이클을 저장하고 유일성을
+    사이클 단위로 잡으세요:
+
+    ```sql
+    CREATE TABLE bookings (
+      id    bigint PRIMARY KEY,          -- 카운터
+      cycle bigint NOT NULL,             -- decode(code, cycle)에 필요
+      code  text   NOT NULL,
+      UNIQUE (cycle, code)
+    );
+    ```
+
+    사이클 `e+1`에서 발급을 시작하기 전에 사이클 `e`의 행들을 만료·회수하세요.
+
 ## decode는 존재 증명이 아니라 파싱
 
 *형식이 올바른* 코드는 실제로 발급됐는지와 무관하게 항상 어떤 카운터로

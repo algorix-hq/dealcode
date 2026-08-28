@@ -38,6 +38,7 @@ codec.decode("421163") # 1
 | `Dealcode(key, alphabet="hex", min_length=6, max_length=None, domain="")` | immutable, thread-safe; create one per namespace and reuse |
 | `codec.encode(n) -> str` | raises `RangeError` outside `[0, codec.capacity)` |
 | `codec.decode(code) -> int` | raises `InvalidCodeError` for malformed input |
+| `CyclingDealcode(key, alphabet, length=6, domain="")` + `cycle_of(n)` | fixed-length cycling mode, SPEC §11 — see [the configuration guide](../guide/configuration.md#fixed-length-cycling-mode) |
 | Errors | `ConfigError`, `RangeError`, `InvalidCodeError`, all subclassing `DealcodeError` (a `ValueError`) |
 
 Encoding is ten AES-CBC-MAC rounds — tens of microseconds, O(1) in the

@@ -105,10 +105,18 @@ CYCLE_CONFIGS = [
     # capacity exactly 2^63: max_cycle == 0, a single never-completed cycle
     dict(name="octal-21-single-cycle", key=KEY128, alphabet="01234567", length=21, domain=""),
     dict(name="korean-domain", key=KEY128, alphabet="hex", length=6, domain="예약·코드"),
+    # domain at the 255-UTF-8-byte limit (85 three-byte characters)
+    dict(name="domain-255b", key=KEY128, alphabet="hex", length=6, domain="가" * 85),
+    # radix extreme: every printable ASCII char
+    dict(name="printable94-3", key=KEY256, alphabet="".join(chr(c) for c in range(0x21, 0x7F)), length=3, domain=""),
+    # hex-looking STRING key is KDF'd, never hex-decoded: these two differ
+    dict(name="hexlike-string-key", key="deadbeefdeadbeefdeadbeefdeadbeef", alphabet="hex", length=6, domain=""),
+    dict(name="hexlike-bytes-key", key=bytes.fromhex("deadbeefdeadbeefdeadbeefdeadbeef"), alphabet="hex", length=6, domain=""),
 ]
 
 CYCLE_INVALID_CONFIGS = [
     dict(name="length-one", key_hex=KEY128.hex(), alphabet="dec", length=1),
+    dict(name="length-129", key_hex=KEY128.hex(), alphabet="hex", length=129),
     dict(name="codespace-under-100", key_hex=KEY128.hex(), custom_alphabet="abcdefghi", length=2),
     dict(name="capacity-over-2pow63", key_hex=KEY128.hex(), alphabet="hex", length=16),
     dict(name="preset-lookalike-alphabet", key_hex=KEY128.hex(), custom_alphabet="HEX", length=6),
@@ -125,6 +133,8 @@ def cycle_counters_for(codec):
         ns.update({cap, cap + 1, 2 * cap - 1, 2 * cap, 2 * cap + 7})
     if codec.max_cycle >= 12345:
         ns.update(12345 * cap + s for s in (0, 1, cap - 1))
+    # the IEEE-double / JS Number.MAX_SAFE_INTEGER seam
+    ns.update({2**53 - 1, 2**53, 2**53 + 1})
     ns.add(top - 1)  # final (possibly partial) cycle
     ns.update(samples(0, min(3 * cap, top), 4))
     ns.update(samples(0, top, 3))

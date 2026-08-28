@@ -53,6 +53,7 @@ dealcode_free(dc);
 | `dealcode_encode` / `dealcode_decode` | 카운터 ↔ 코드 전단사 |
 | `dealcode_capacity`, `dealcode_min_length`, `dealcode_max_length`, `dealcode_radix`, `dealcode_alphabet` | 인트로스펙션 |
 | `dealcode_strerror` | 사람이 읽을 수 있는 에러 설명 |
+| `dealcode_cycle_*` (`_new`, `_encode`, `_decode`, `_free`, …) | 고정 길이 순환 모드, SPEC §11 — [설정 가이드](../guide/configuration.ko.md#fixed-length-cycling-mode) 참고 |
 | 에러 | 명시적 `dealcode_err_t` 반환 코드; 실패 시 출력 파라미터에 아무것도 쓰지 않음(`dealcode_new`의 `*out = NULL` 제외) |
 
 전체 문서화된 API는 `include/dealcode.h`에 있습니다. `dealcode_t`는 생성

@@ -41,6 +41,7 @@ codec.decode("d4e705")?; // 1
 | `Dealcode::builder(key).alphabet(..).min_length(..).max_length(..).domain(..).build()` | 잘못된 설정 → `Err(Error::Config)` |
 | `codec.encode(n: u64) -> Result<String>` | `[0, codec.capacity())` 밖이면 `Err(Error::Range)` |
 | `codec.decode(code) -> Result<u64>` | 형식이 잘못된 입력이면 `Err(Error::InvalidCode)` |
+| `CyclingDealcode::builder(key)...length(..).build()` + `cycle_of(n)` | 고정 길이 순환 모드, SPEC §11 — [설정 가이드](../guide/configuration.ko.md#fixed-length-cycling-mode) 참고 |
 | 에러 | `dealcode::Error`(`Config` / `Range` / `InvalidCode`), `std::error::Error` 구현 |
 
 `Dealcode` 인스턴스는 불변이고 `Send + Sync`입니다 — `Arc`나 `static`으로

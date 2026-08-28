@@ -38,6 +38,7 @@ codec.decode("d4e705") # 1
 | `Dealcode(key, alphabet="hex", min_length=6, max_length=None, domain="")` | 불변, 스레드 안전; 네임스페이스당 하나 만들어 재사용 |
 | `codec.encode(n) -> str` | `[0, codec.capacity)` 밖이면 `RangeError` |
 | `codec.decode(code) -> int` | 형식이 잘못된 입력이면 `InvalidCodeError` |
+| `CyclingDealcode(key, alphabet, length=6, domain="")` + `cycle_of(n)` | 고정 길이 순환 모드, SPEC §11 — [설정 가이드](../guide/configuration.ko.md#fixed-length-cycling-mode) 참고 |
 | 에러 | `ConfigError`, `RangeError`, `InvalidCodeError` — 모두 `DealcodeError`(`ValueError`)의 서브클래스 |
 
 인코딩은 AES-CBC-MAC 10라운드 — 수십 마이크로초, 카운터 값에 대해

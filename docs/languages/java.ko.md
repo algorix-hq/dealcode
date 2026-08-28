@@ -40,6 +40,7 @@ codec.decode("d4e705"); // 1
 | `Dealcode.builder().key(...).alphabet(...).minLength(...).maxLength(...).domain(...).build()` | 키는 `byte[]` 또는 `String` |
 | `codec.encode(long n)` | `[0, codec.maxCounter()]` 밖이면 `CounterRangeException` (포함 최댓값 — 공간이 정확히 2^63일 수 있음) |
 | `codec.decode(String code)` | 형식이 잘못된 입력이면 `InvalidCodeException` |
+| `CyclingDealcode.builder()...length(...).build()` + `cycleOf(n)` | 고정 길이 순환 모드, SPEC §11 — [설정 가이드](../guide/configuration.ko.md#fixed-length-cycling-mode) 참고 |
 | `Alphabets` | 프리셋 알파벳 문자열 상수 |
 | 에러 | `ConfigException`, `CounterRangeException`, `InvalidCodeException` — 모두 `DealcodeException`(`IllegalArgumentException`)의 서브클래스 |
 

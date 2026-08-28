@@ -53,6 +53,7 @@ dealcode_free(dc);
 | `dealcode_encode` / `dealcode_decode` | the counter ↔ code bijection |
 | `dealcode_capacity`, `dealcode_min_length`, `dealcode_max_length`, `dealcode_radix`, `dealcode_alphabet` | introspection |
 | `dealcode_strerror` | human-readable error descriptions |
+| `dealcode_cycle_*` (`_new`, `_encode`, `_decode`, `_free`, …) | fixed-length cycling mode, SPEC §11 — see [the configuration guide](../guide/configuration.md#fixed-length-cycling-mode) |
 | Errors | explicit `dealcode_err_t` return codes; on failure nothing is written to output parameters (except `*out = NULL` in `dealcode_new`) |
 
 The full, documented API lives in `include/dealcode.h`. A `dealcode_t` is

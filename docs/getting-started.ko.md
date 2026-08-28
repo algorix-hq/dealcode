@@ -219,3 +219,7 @@ Dealcode(key, "hex", min_length=16, max_length=16)   # 고정 길이 토큰
 - DB에 연결하기: [데이터베이스 연동](guide/database.ko.md)
 - 알파벳, 도메인, 길이, 키 규칙: [설정](guide/configuration.ko.md)
 - 키가 지키는 것과 지키지 않는 것: [보안 모델](guide/security.ko.md)
+
+코드 공간이 다 차더라도 코드 길이가 영원히 그대로여야 한다면, 설정
+가이드의 [고정 길이 순환 모드](guide/configuration.ko.md#fixed-length-cycling-mode)를
+보세요.

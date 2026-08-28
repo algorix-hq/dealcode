@@ -125,24 +125,33 @@ permutation (SPEC §11).
 ```rust
 use dealcode::CyclingDealcode;
 
-let pnr = CyclingDealcode::builder("your-secret-key")
-    .alphabet("crockford")
-    .length(6)
-    .domain("bookings")
-    .build()?;
-// counter n belongs to cycle n / pnr.capacity()
-let code = pnr.encode(n)?;          // always exactly 6 characters
-let cycle = pnr.cycle_of(n)?;       // store this next to the code!
-assert_eq!(pnr.decode(&code, cycle)?, n); // the cycle is required
-# Ok::<(), dealcode::Error>(())
+fn main() -> Result<(), dealcode::Error> {
+    let pnr = CyclingDealcode::builder("your-secret-key")
+        .alphabet("crockford")
+        .length(6)
+        .domain("bookings")
+        .build()?;
+
+    let n: u64 = 3_000_000_007;         // from your sequence
+    // counter n belongs to cycle n / pnr.capacity()
+    let code = pnr.encode(n)?;          // always exactly 6 characters
+    let cycle = pnr.cycle_of(n)?;       // store this next to the code!
+    assert_eq!(pnr.decode(&code, cycle)?, n); // the cycle is required
+    Ok(())
+}
 ```
+
+Configuration mirrors `Dealcode` (key, alphabet, domain) with a single fixed
+`length`: `2 <= length <= 128` and `100 <= radix^length <= 2^63`.
 
 **Operational rule:** codes *repeat* across cycles by design, so a global
 `UNIQUE(code)` index spanning cycles WILL fire — scope uniqueness as
 `UNIQUE(cycle, code)`, keep at most one cycle's codes live at a time per scope
 (retire or expire cycle `e` before issuing from `e+1`), and persist each live
 code's cycle (or the currently active cycle): `decode` needs it, and the
-library cannot recover the cycle from the code string.
+library cannot recover the cycle from the code string. Decoding with a wrong
+(but in-range) cycle is *not* an error — it silently returns a different
+counter; the existence check on the decoded counter is what catches it.
 
 ## Thread safety & performance
 

@@ -44,6 +44,7 @@ uint64_t n = codec.decode(code);              // 42
 | `dealcode::Codec(key, opts)` | 키는 string, `std::vector<std::uint8_t>`, 또는 `(ptr, len)` |
 | `codec.encode(n)` / `codec.decode(code)` | 카운터 ↔ 코드 전단사 |
 | `codec.capacity()`, `min_length()`, `max_length()`, `radix()`, `alphabet()` | 인트로스펙션 |
+| `dealcode::CycleCodec(key, opts)` | 고정 길이 순환 모드, SPEC §11 — [설정 가이드](../guide/configuration.ko.md#fixed-length-cycling-mode) 참고 |
 | 예외 | `dealcode::ConfigError`, `dealcode::RangeError`, `dealcode::InvalidCodeError` — 모두 `dealcode::Error`(`std::runtime_error`) 계열 |
 
 `Codec`은 **move 전용**입니다(키 재료를 포함한 C 핸들을 `std::unique_ptr`로

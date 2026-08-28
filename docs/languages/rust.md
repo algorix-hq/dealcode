@@ -42,6 +42,7 @@ codec.decode("421163")?; // 1
 | `Dealcode::builder(key).alphabet(..).min_length(..).max_length(..).domain(..).build()` | invalid config → `Err(Error::Config)` |
 | `codec.encode(n: u64) -> Result<String>` | `Err(Error::Range)` outside `[0, codec.capacity())` |
 | `codec.decode(code) -> Result<u64>` | `Err(Error::InvalidCode)` for malformed input |
+| `CyclingDealcode::builder(key)...length(..).build()` + `cycle_of(n)` | fixed-length cycling mode, SPEC §11 — see [the configuration guide](../guide/configuration.md#fixed-length-cycling-mode) |
 | Errors | `dealcode::Error` (`Config` / `Range` / `InvalidCode`), implements `std::error::Error` |
 
 A `Dealcode` instance is immutable and `Send + Sync` — share it in an `Arc`

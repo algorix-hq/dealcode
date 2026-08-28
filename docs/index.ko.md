@@ -75,6 +75,7 @@ Dealcode(key, "crockford", domain="coupons")       # 예: 'ZV6NQ0' — 사람 �
 Dealcode(key, "dec",       domain="orders")        # 예: '839207' — 숫자만
 Dealcode(key, "base62",    min_length=8)           # 예: 'tHx93bQk'
 Dealcode(key, "hex", min_length=16, max_length=16) # 고정 길이 토큰
+CyclingDealcode(key, "crockford", length=6)        # 영원히 고정 길이 — 사이클마다 공간 재사용 (가이드 참고)
 Dealcode(key, "!@#$%^&*")                          # 커스텀 알파벳도 그대로 동작
 ```
 

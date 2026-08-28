@@ -139,12 +139,18 @@ cycle, _ := pnr.CycleOf(n)        // store this next to the code!
 m, _ := pnr.Decode(code, cycle)   // m == n; the cycle is required
 ```
 
+Configuration mirrors `Config` (key, alphabet, domain) with a single fixed
+`Length`: `2 <= Length <= 128` and `100 <= radix^Length <= 2^63`.
+
 **Operational rule:** codes *repeat* across cycles by design, so a global
 `UNIQUE(code)` index spanning cycles WILL fire — scope uniqueness as
 `UNIQUE(cycle, code)`, keep at most one cycle's codes live at a time per
 scope (retire or expire cycle `e` before issuing from `e+1`), and persist
 each live code's cycle (or the currently active cycle): `Decode` needs it,
-and the library cannot recover the cycle from the code string.
+and the library cannot recover the cycle from the code string. Decoding with
+a wrong (but in-range) cycle is *not* an error — it silently returns a
+different counter; the existence check on the decoded counter is what
+catches it.
 
 ## Concurrency & performance
 

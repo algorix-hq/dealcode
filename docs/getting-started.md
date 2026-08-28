@@ -221,3 +221,8 @@ an existence check or your own check digit).
 - Wire it to your database: [Database integration](guide/database.md)
 - Alphabets, domains, lengths, key rules: [Configuration](guide/configuration.md)
 - What the key does and doesn't protect: [Security model](guide/security.md)
+
+If your codes must stay exactly the same length forever — even after the
+code space fills up — see the
+[fixed-length cycling mode](guide/configuration.md#fixed-length-cycling-mode)
+in the configuration guide.

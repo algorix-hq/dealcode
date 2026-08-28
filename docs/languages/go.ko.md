@@ -39,6 +39,7 @@ codec.Decode("d4e705") // 1, nil
 | `dealcode.New(dealcode.Config{...}) (*Codec, error)` | `Key []byte` 또는 `KeyString string`(정확히 하나), `Alphabet`, `MinLength`, `MaxLength`, `Domain`; 제로 값은 스펙 기본값 선택 |
 | `codec.Encode(n int64) (string, error)` | `[0, codec.Capacity())` 밖이면 `ErrRange`를 감싼 에러 |
 | `codec.Decode(code string) (int64, error)` | 형식이 잘못된 입력이면 `ErrInvalidCode`를 감싼 에러 |
+| `dealcode.NewCycling(dealcode.CyclingConfig{...}) (*CycleCodec, error)` + `CycleOf(n)` | 고정 길이 순환 모드, SPEC §11 — [설정 가이드](../guide/configuration.ko.md#fixed-length-cycling-mode) 참고 |
 | 에러 | 센티널 값 `ErrConfig`, `ErrRange`, `ErrInvalidCode` — `errors.Is`로 분류 |
 
 `Codec`은 불변이고 잠금 없이 여러 고루틴에서 동시에 사용해도 안전합니다.

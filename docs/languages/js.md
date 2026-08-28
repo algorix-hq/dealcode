@@ -40,6 +40,7 @@ codec.decodeNumber(code);        // 1   (number; throws if > Number.MAX_SAFE_INT
 | `codec.encode(n)` | accepts `number` or `bigint`; throws `CounterRangeError` out of range |
 | `codec.decode(code) -> bigint` / `codec.decodeNumber(code) -> number` | throw `InvalidCodeError` for malformed input |
 | Read-only properties | `alphabet`, `radix`, `minLength`, `maxLength`, `domain`, `capacity` (bigint) |
+| `new CyclingDealcode({ key, alphabet, length, domain })` + `cycleOf(n)` | fixed-length cycling mode, SPEC §11 — see [the configuration guide](../guide/configuration.md#fixed-length-cycling-mode) |
 | Exports | preset alphabet strings as `ALPHABETS`; errors extend `DealcodeError` (`ConfigError`, `CounterRangeError`, `InvalidCodeError`) |
 
 ## Tests

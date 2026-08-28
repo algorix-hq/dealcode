@@ -45,6 +45,7 @@ uint64_t n = codec.decode(code);              // 42
 | `dealcode::Codec(key, opts)` | key as string, `std::vector<std::uint8_t>`, or `(ptr, len)` |
 | `codec.encode(n)` / `codec.decode(code)` | the counter ↔ code bijection |
 | `codec.capacity()`, `min_length()`, `max_length()`, `radix()`, `alphabet()` | introspection |
+| `dealcode::CycleCodec(key, opts)` | fixed-length cycling mode, SPEC §11 — see [the configuration guide](../guide/configuration.md#fixed-length-cycling-mode) |
 | Exceptions | `dealcode::ConfigError`, `dealcode::RangeError`, `dealcode::InvalidCodeError`, all rooted at `dealcode::Error` (a `std::runtime_error`) |
 
 A `Codec` is **move-only** (it owns the underlying C handle, key material

@@ -128,7 +128,9 @@ design. Keep at most one cycle's codes live per uniqueness scope — retire
 or expire cycle `e`'s codes before issuing from cycle `e + 1`, use
 `UNIQUE(cycle, code)` rather than `UNIQUE(code)`, and persist which cycle
 each live code belongs to: `decode` requires it, and the library cannot
-recover the cycle from the code string.
+recover the cycle from the code string. Decoding with a wrong (but
+in-range) cycle is *not* an error — it silently returns a different
+counter; the existence check on the decoded counter is what catches it.
 
 ## Errors
 

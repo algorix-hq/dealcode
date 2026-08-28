@@ -41,6 +41,7 @@ codec.decode("421163"); // 1
 | `Dealcode.builder().key(...).alphabet(...).minLength(...).maxLength(...).domain(...).build()` | key accepts `byte[]` or `String` |
 | `codec.encode(long n)` | throws `CounterRangeException` outside `[0, codec.maxCounter()]` (inclusive max — the space may be exactly 2^63) |
 | `codec.decode(String code)` | throws `InvalidCodeException` for malformed input |
+| `CyclingDealcode.builder()...length(...).build()` + `cycleOf(n)` | fixed-length cycling mode, SPEC §11 — see [the configuration guide](../guide/configuration.md#fixed-length-cycling-mode) |
 | `Alphabets` | preset alphabet strings as constants |
 | Errors | `ConfigException`, `CounterRangeException`, `InvalidCodeException` — all subclassing `DealcodeException` (an `IllegalArgumentException`) |
 

@@ -185,6 +185,25 @@ any source of never-repeating integers qualifies.
     ever fires, **do not retry** — investigate. Retrying would paper over a
     configuration mistake that will keep colliding.
 
+!!! note "Cycling mode changes the schema"
+
+    Everything above assumes the default, ever-growing mode. In the
+    [fixed-length cycling mode](configuration.md#fixed-length-cycling-mode)
+    codes **repeat across cycles by design**, so a global `UNIQUE(code)`
+    fires at every rollover and is the wrong contract. Store the cycle next
+    to the code and scope uniqueness per cycle:
+
+    ```sql
+    CREATE TABLE bookings (
+      id    bigint PRIMARY KEY,          -- the counter
+      cycle bigint NOT NULL,             -- decode(code, cycle) needs this
+      code  text   NOT NULL,
+      UNIQUE (cycle, code)
+    );
+    ```
+
+    Retire or expire cycle `e`'s rows before issuing from cycle `e+1`.
+
 ## Decode is parsing, not proof of existence
 
 A *well-formed* code always decodes to some counter, whether or not that
