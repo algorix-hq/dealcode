@@ -8,7 +8,7 @@ description = "Collision-free, random-looking codes from a database counter, via
 keywords = ["fpe", "ff1", "codes", "coupon", "id"]
 categories = ["cryptography", "encoding"]
 readme = "README.md"
-homepage = "https://github.com/algorix-hq/dealcode"
+homepage = "https://algorix-hq.github.io/dealcode/"
 repository = "https://github.com/algorix-hq/dealcode"
 documentation = "https://docs.rs/dealcode"
 # The integration tests read ../testvectors, which only exists in the

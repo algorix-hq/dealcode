@@ -2,6 +2,9 @@
 
 <!-- One paragraph: what changes and why. Link the issue if there is one. -->
 
+<!-- CI runs automatically on this PR (all seven implementations + a
+     vectors-reproducibility check). -->
+
 ## Checklist
 
 - [ ] Tests pass locally for every implementation I touched (each

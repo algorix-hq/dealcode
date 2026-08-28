@@ -3,3 +3,6 @@ contact_links:
   - name: Security vulnerability
     url: https://github.com/algorix-hq/dealcode/security/advisories/new
     about: Report privately — please do not open a public issue.
+  - name: Questions & ideas
+    url: https://github.com/algorix-hq/dealcode/discussions
+    about: Not sure it's a bug? Ask in Discussions.

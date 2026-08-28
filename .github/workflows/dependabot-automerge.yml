@@ -1,0 +1,29 @@
+# Auto-merge Dependabot patch/minor updates once CI passes.
+#
+# `gh pr merge --auto` arms GitHub's auto-merge, which waits for the
+# required status checks on main's ruleset (the full CI matrix) before
+# squash-merging. Major updates are left for a human.
+name: dependabot-automerge
+
+on:
+  pull_request:
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  automerge:
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: dependabot/fetch-metadata@v2
+        id: meta
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+      - if: steps.meta.outputs.update-type != 'version-update:semver-major'
+        run: gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}

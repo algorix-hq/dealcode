@@ -51,6 +51,15 @@ files pass in your test suite, add a README with a quickstart and a database
 recipe, and wire a job into `.github/workflows/ci.yml` (including the new
 name in the `only` input's `options` list). That's the whole bar.
 
+## Branches & merging
+
+Trunk-based: `main` is always releasable and is protected against
+force-push and deletion; release tags (`v*`, `go/v*`) are immutable.
+Contribute from a fork/feature branch via PR — squash-merged, branch
+auto-deleted. Versions are SemVer, released in lock-step across all seven
+packages (see RELEASING). Dependabot patch/minor updates auto-merge once
+CI passes; majors wait for a human.
+
 ## CI
 
 CI runs automatically on every push to `main` and on every pull request

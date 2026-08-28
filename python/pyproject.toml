@@ -27,6 +27,7 @@ classifiers = [
 dependencies = ["cryptography>=41"]
 
 [project.urls]
+Documentation = "https://algorix-hq.github.io/dealcode/"
 Homepage = "https://github.com/algorix-hq/dealcode"
 Repository = "https://github.com/algorix-hq/dealcode"
 Issues = "https://github.com/algorix-hq/dealcode/issues"

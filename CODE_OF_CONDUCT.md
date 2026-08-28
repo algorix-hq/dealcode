@@ -7,6 +7,7 @@ In short: be respectful, assume good faith, keep discussions technical, and
 harassment of any kind is not tolerated.
 
 Instances of unacceptable behavior may be reported privately to the
-maintainers ([@algorix-hq](https://github.com/algorix-hq)) or through
+maintainers at **kznm.develop@gmail.com**, via
+[@algorix-hq](https://github.com/algorix-hq), or through
 [GitHub's report abuse](https://github.com/contact/report-abuse) flow. All
 reports are reviewed confidentially.
