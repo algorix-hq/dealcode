@@ -45,8 +45,9 @@
 | C | [`c/`](c/) | `make install` / 벤더링 (GCC/Clang: `__int128` 필요) | OpenSSL libcrypto |
 | C++ | [`cpp/`](cpp/) | CMake (C 코어 래핑) | OpenSSL libcrypto |
 
-> [PyPI](https://pypi.org/project/dealcode/)는 출시됐습니다(v1.0.0). Go
-> 모듈은 이 저장소에서 바로 받아집니다. npm, Maven Central, crates.io는
+> [PyPI](https://pypi.org/project/dealcode/)와
+> [npm](https://www.npmjs.com/package/dealcode)은 출시됐습니다(v1.0.0).
+> Go 모듈은 이 저장소에서 바로 받아집니다. Maven Central과 crates.io는
 > **출시 준비 중**이며, 그때까지는 해당 디렉터리 README의 소스 설치
 > 방법을 사용하세요.
 

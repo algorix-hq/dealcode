@@ -9,13 +9,6 @@ of the [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md)
 npm install dealcode
 ```
 
-Note: v1.0.0 is not yet published to npm. Until it is, install from source:
-
-```sh
-git clone https://github.com/algorix-hq/dealcode
-cd dealcode/js && npm install && npm run build
-npm install /path/to/dealcode/js    # from your project
-```
 
 Requires Node.js ≥ 18. Zero runtime dependencies — AES and SHA-256 come from
 `node:crypto`. Ships ESM and CommonJS builds with full TypeScript types.
