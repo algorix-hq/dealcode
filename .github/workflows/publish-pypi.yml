@@ -1,0 +1,55 @@
+# Publish the Python package to PyPI via Trusted Publishing (OIDC).
+#
+# Prerequisite: a Trusted Publisher registered on PyPI for project
+# "dealcode" with owner algorix-hq, repository dealcode, workflow
+# publish-pypi.yml, environment pypi.
+#
+# Trigger: MANUAL ONLY (workflow_dispatch) — run from the Actions tab or
+# `gh workflow run publish-pypi.yml` after the release commit is on main.
+name: publish-pypi
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Test before building
+        run: |
+          pip install ./python pytest
+          python -m pytest python/tests -q
+      - name: Build sdist and wheel
+        run: |
+          pip install build
+          python -m build python/
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: python/dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/dealcode/
+    permissions:
+      id-token: write  # OIDC token for PyPI Trusted Publishing
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          packages-dir: dist/

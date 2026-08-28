@@ -9,12 +9,6 @@ the [dealcode spec](https://github.com/algorix-hq/dealcode/blob/main/SPEC.md).
 pip install dealcode
 ```
 
-Note: v1.0.0 is not yet published to PyPI. Until it is, install from source:
-
-```sh
-pip install "dealcode @ git+https://github.com/algorix-hq/dealcode#subdirectory=python"
-```
-
 Requires Python ≥ 3.9. The only dependency is [`cryptography`](https://cryptography.io) (PyCA), used for AES.
 
 ## Quickstart
