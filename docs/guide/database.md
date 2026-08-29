@@ -174,8 +174,9 @@ invisible: codes look random anyway. And FF1 guarantees distinct inputs give
 distinct outputs, so uniqueness of codes reduces entirely to uniqueness of
 counters. No locks, no retry loop, no collision-handling code path.
 
-MySQL and others work the same way with `AUTO_INCREMENT`/identity columns —
-any source of never-repeating integers qualifies.
+Any source of never-repeating integers qualifies — see the
+[per-database recipes](#per-database-recipes) below for how each major
+engine provides one, and which engine-specific behaviors to avoid.
 
 !!! warning "The `UNIQUE` index is a tripwire, not a mechanism"
 
@@ -203,6 +204,136 @@ any source of never-repeating integers qualifies.
     ```
 
     Retire or expire cycle `e`'s rows before issuing from cycle `e+1`.
+
+## Per-database recipes
+
+What differs per engine is how you obtain a never-repeating integer — and
+which engine-specific behaviors can silently break "never-repeating". The
+rule that must survive every engine: **gaps are fine, reuse is fatal.** A
+skipped counter is just a code that never gets issued (invisible — codes
+look random anyway); a reused counter is the same code handed to two
+customers.
+
+With a standalone sequence you know the counter *before* the insert
+(fetch → encode → insert, as in the recipe above). With an
+auto-increment/identity column the counter exists only *after* the insert:
+insert the row, read the generated id, encode, and store the code in the
+same transaction.
+
+=== "PostgreSQL"
+
+    ```sql
+    CREATE SEQUENCE order_code_seq AS bigint MINVALUE 0 START WITH 0;
+    -- or let the table own the counter:
+    CREATE TABLE orders (
+      id   bigint GENERATED ALWAYS AS IDENTITY (START WITH 0 MINVALUE 0) PRIMARY KEY,
+      code text UNIQUE
+    );
+    ```
+
+    `nextval()` is concurrency-safe and never re-issues a value, across
+    crashes and rollbacks alike. With an identity column, use
+    `INSERT … RETURNING id`, encode, then `UPDATE … SET code` in the same
+    transaction.
+
+    Never run `setval()` backwards, and never `TRUNCATE … RESTART IDENTITY`
+    a table whose codes are still out in the world — both rewind the
+    counter.
+
+=== "MySQL"
+
+    ```sql
+    CREATE TABLE orders (
+      id   BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,
+      code VARCHAR(32) UNIQUE
+    ) ENGINE = InnoDB;
+    ```
+
+    Insert, read `LAST_INSERT_ID()`, encode, store the code in the same
+    transaction. Counters start at 1, not 0 — fine; counter 0 simply goes
+    unissued.
+
+    !!! warning "MySQL < 8.0 can reuse ids after a restart"
+
+        Before 8.0, InnoDB kept the auto-increment counter in memory and
+        recomputed it as `MAX(id) + 1` on restart. Delete the newest rows,
+        restart the server, and those ids — and therefore their codes — get
+        issued again. MySQL 8.0+ persists the counter. On 5.7, either never
+        delete the newest rows or drive codes from a separate counter
+        table.
+
+    `TRUNCATE TABLE` and `ALTER TABLE … AUTO_INCREMENT = n` with a lower
+    `n` also rewind the counter — never on a live namespace.
+
+=== "MariaDB"
+
+    ```sql
+    CREATE SEQUENCE order_code_seq MINVALUE 0 START WITH 0 NOCYCLE;
+    SELECT NEXT VALUE FOR order_code_seq;
+    ```
+
+    MariaDB (10.3+) has real sequences — prefer them: sequence state is
+    persisted, so it survives restarts. `AUTO_INCREMENT` also works, but
+    MariaDB still recomputes the in-memory counter as `MAX(id) + 1` on
+    restart (it did not adopt MySQL 8.0's persistence), so the
+    delete-newest-rows-then-restart reuse hazard applies to **all** MariaDB
+    versions. Crash-dropped `CACHE` values are just gaps — fine.
+
+=== "SQLite"
+
+    ```sql
+    CREATE TABLE orders (
+      id   INTEGER PRIMARY KEY AUTOINCREMENT,
+      code TEXT UNIQUE
+    );
+    ```
+
+    The `AUTOINCREMENT` keyword is **required** here, not optional style: a
+    plain `INTEGER PRIMARY KEY` picks `max(rowid) + 1`, so deleting the
+    newest row re-issues its id — and its code. `AUTOINCREMENT` (backed by
+    the internal `sqlite_sequence` table) guarantees ids are never reused.
+    Read the counter with `last_insert_rowid()`, and never edit or delete
+    rows in `sqlite_sequence`.
+
+=== "Oracle"
+
+    ```sql
+    CREATE SEQUENCE order_code_seq START WITH 0 MINVALUE 0 NOCYCLE;
+    ```
+
+    Use `order_code_seq.NEXTVAL` directly in the `INSERT` (or fetch it
+    first). Values dropped from `CACHE` on a crash are gaps — fine. Never
+    add `CYCLE`, and never drop-and-recreate the sequence with a lower
+    `START WITH`. Identity columns (12c+,
+    `GENERATED ALWAYS AS IDENTITY`) sit on a system sequence and behave the
+    same; avoid `ALTER TABLE … MODIFY id … START WITH` restarts.
+
+=== "SQL Server"
+
+    ```sql
+    CREATE SEQUENCE order_code_seq AS bigint START WITH 0 MINVALUE 0 NO CYCLE;
+    -- INSERT INTO orders (id, code) VALUES (NEXT VALUE FOR order_code_seq, @code);
+    ```
+
+    Or `IDENTITY(0,1)` with `SCOPE_IDENTITY()` after the insert. Identity
+    caching can skip a block of values after an unexpected restart (up to
+    10,000 for `bigint`) — gaps, fine. Never
+    `DBCC CHECKIDENT (orders, RESEED, n)` with a lower `n`, never
+    `ALTER SEQUENCE … RESTART`, and remember `TRUNCATE TABLE` reseeds the
+    identity — all three rewind the counter.
+
+Whatever your ORM calls its id generation — Django's `AutoField`, JPA's
+`@GeneratedValue`, ActiveRecord's `id`, Prisma's `autoincrement()` — it
+maps to one of the mechanisms above, and the same rules apply underneath.
+
+| Engine | Counter source | Harmless (gaps) | Fatal (reuse) — never on a live namespace |
+|--------|----------------|-----------------|-------------------------------------------|
+| PostgreSQL | `SEQUENCE` / identity | rollbacks, crash-dropped cache | `setval()` backwards, `TRUNCATE … RESTART IDENTITY` |
+| MySQL | `AUTO_INCREMENT` | rollbacks, failed inserts | `TRUNCATE`, lowering `AUTO_INCREMENT`; < 8.0: delete newest rows + restart |
+| MariaDB | `SEQUENCE` (10.3+) preferred | crash-dropped cache | as MySQL — the restart recomputation applies to all versions |
+| SQLite | `INTEGER PRIMARY KEY AUTOINCREMENT` | none in practice | omitting `AUTOINCREMENT`, touching `sqlite_sequence` |
+| Oracle | `SEQUENCE` / identity (12c+) | crash-dropped `CACHE` | `CYCLE`, recreating the sequence lower, identity restart |
+| SQL Server | `SEQUENCE` / `IDENTITY` | identity cache after restart | `DBCC CHECKIDENT RESEED` lower, `ALTER SEQUENCE … RESTART`, `TRUNCATE` |
 
 ## Decode is parsing, not proof of existence
 

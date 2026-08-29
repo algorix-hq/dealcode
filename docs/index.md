@@ -4,6 +4,27 @@
 from a shuffled deck. Every card comes out exactly once; the order looks
 random; the dealer only remembers how many cards have been dealt.
 
+Anyone who has shipped short public codes — an airline-style booking
+reference, an order number, a `cus_xxxxxx` shortcode — knows the trap:
+
+- **Random?** The birthday problem bites absurdly early: draw random 6-digit
+  codes and the first duplicate is *expected* around code **#1,200** — in a
+  space of a million. From then on, every insert carries a uniqueness check
+  and a retry loop.
+- **UUID?** Never collides, but 36 characters — not something you print on a
+  boarding pass.
+- **nanoid?** Shorter, yet still long — it has to be, *because* it is random.
+  Shrink it and the birthday problem comes straight back.
+- **A raw sequence?** Short and collision-free — and it broadcasts exactly
+  how many orders you have.
+
+dealcode is the missing option: keep the sequence your database already
+produces, and it **packs the code space full** — every code dealt exactly
+once, no repeats until all 1,000,000 codes (then all 10,000,000, …) are
+actually used — while the order stays cryptographically unpredictable from
+outside. All you need is a counter. (Full argument and alternatives table:
+[Why dealcode exists](philosophy.md).)
+
 ```
 counter:  0        1        2        3        ...      16,777,216
            │        │        │        │                  │

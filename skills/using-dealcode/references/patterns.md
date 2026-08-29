@@ -146,6 +146,44 @@ Sequence gaps are fine (codes look random anyway). Do not add
 retry-on-unique-violation logic: with a correct setup that index can only
 fire on config drift.
 
+### Per-engine counter rules
+
+Gaps are fine; **reuse is fatal** (a reused counter re-issues an existing
+code). What each engine needs:
+
+- **PostgreSQL**: `SEQUENCE` or identity column — both safe across crashes.
+  Never `setval()` backwards or `TRUNCATE … RESTART IDENTITY` on a live
+  namespace.
+- **MySQL**: `AUTO_INCREMENT` + `LAST_INSERT_ID()`. **< 8.0 reuses ids**
+  after delete-newest-rows + server restart (in-memory counter recomputed
+  as `MAX(id)+1`); 8.0+ persists it. Never `TRUNCATE` or lower
+  `AUTO_INCREMENT`.
+- **MariaDB**: prefer `CREATE SEQUENCE` (10.3+, persisted). The
+  `AUTO_INCREMENT` restart-recomputation hazard applies to **all** MariaDB
+  versions.
+- **SQLite**: `INTEGER PRIMARY KEY AUTOINCREMENT` — the keyword is
+  **required**, not style:
+
+    ```sql
+    -- BAD: plain rowid reuses the newest deleted id — and its code
+    CREATE TABLE orders (id INTEGER PRIMARY KEY, code TEXT UNIQUE);
+    -- GOOD: AUTOINCREMENT guarantees never-reused ids
+    CREATE TABLE orders (id INTEGER PRIMARY KEY AUTOINCREMENT, code TEXT UNIQUE);
+    ```
+
+- **Oracle**: `CREATE SEQUENCE … MINVALUE 0 NOCYCLE` (or 12c+ identity).
+  Crash-dropped `CACHE` values are just gaps. Never `CYCLE`, never
+  recreate lower.
+- **SQL Server**: `CREATE SEQUENCE … NO CYCLE` or `IDENTITY` +
+  `SCOPE_IDENTITY()`. Identity-cache jumps after restart are gaps — fine.
+  Never `DBCC CHECKIDENT RESEED` lower, `ALTER SEQUENCE … RESTART`, or
+  `TRUNCATE`.
+
+With auto-increment/identity (id known only after insert): insert → read
+generated id → encode → store the code, all in one transaction. ORM id
+generation (Django `AutoField`, JPA `@GeneratedValue`, Prisma
+`autoincrement()`, …) maps to one of the above; same rules apply.
+
 ## Cycling mode (fixed-length): good/bad
 
 Fixed-length-forever codes (booking/PNR style). Capacity per cycle is
