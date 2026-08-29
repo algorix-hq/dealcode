@@ -2,7 +2,7 @@
 
 [스펙](../spec.ko.md)의 C11 구현 — [C++ 래퍼](cpp.ko.md)의 기반 코어이기도
 합니다. GCC 또는 Clang(`unsigned __int128` 사용)과 OpenSSL libcrypto
-1.1+/3.x가 필요하고, 사용하는 쪽은 `-lcrypto`로 링크해야 합니다.
+1.1+/3.x가 필요하고 사용하는 쪽은 `-lcrypto`로 링크해야 합니다.
 
 원본: [GitHub의 `c/`](https://github.com/algorix-hq/dealcode/tree/main/c)
 · [전체 README](https://github.com/algorix-hq/dealcode/blob/main/c/README.md)

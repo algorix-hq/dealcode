@@ -1,8 +1,8 @@
 # 데이터베이스 연동
 
 dealcode는 의도적으로 저장소에 무관합니다. DB와 직접 통신하지 않고 —
-카운터를 코드로 바꾸는 일만 합니다. 필요한 것은 반복되지 않는 정수
-하나뿐이고, 그건 DB가 이미 제일 잘 만듭니다.
+카운터를 코드로 바꾸는 일만 합니다. 반복되지 않는 정수
+하나면 되고, 그건 DB가 이미 제일 잘 만듭니다.
 
 ## 레시피
 
@@ -170,7 +170,7 @@ CREATE TABLE orders (
 시퀀스는 동시 트랜잭션과 롤백이 있어도 같은 번호를 두 번 주지 않으므로
 코드는 절대 충돌하지 않습니다. 시퀀스의 갭은 티가 나지 않습니다 — 코드는
 어차피 랜덤처럼 보이니까요. 그리고 FF1은 다른 입력에 다른 출력을
-보장하므로, 코드의 유일성은 카운터의 유일성으로 완전히 환원됩니다. 잠금도,
+보장하므로 코드의 유일성은 카운터의 유일성으로 완전히 환원됩니다. 잠금도,
 재시도 루프도, 충돌 처리 코드 경로도 없습니다.
 
 반복되지 않는 정수 소스라면 무엇이든 좋습니다 — 메이저 엔진별로 그런
@@ -214,7 +214,7 @@ CREATE TABLE orders (
 
 독립 시퀀스는 insert *전에* 카운터를 알 수 있습니다(위 레시피처럼 조회 →
 encode → insert). auto-increment/identity 컬럼은 insert *후에야* 카운터가
-생기므로: 행을 insert하고, 생성된 id를 읽고, encode해서, 같은 트랜잭션
+생기므로: 행을 insert하고, 생성된 id를 읽고, encode해서 같은 트랜잭션
 안에서 코드를 저장하세요.
 
 === "PostgreSQL"
@@ -228,7 +228,7 @@ encode → insert). auto-increment/identity 컬럼은 insert *후에야* 카운�
     );
     ```
 
-    `nextval()`은 동시성에 안전하고, 크래시와 롤백을 겪어도 같은 값을 두
+    `nextval()`은 동시성에 안전하고 크래시와 롤백을 겪어도 같은 값을 두
     번 주지 않습니다. identity 컬럼이면 `INSERT … RETURNING id`로 받아
     encode한 뒤 같은 트랜잭션에서 `UPDATE … SET code` 하세요.
 
@@ -251,14 +251,14 @@ encode → insert). auto-increment/identity 컬럼은 insert *후에야* 카운�
 
     !!! warning "MySQL < 8.0은 재시작 후 id를 재사용할 수 있습니다"
 
-        8.0 이전 InnoDB는 auto-increment 카운터를 메모리에만 두고,
+        8.0 이전 InnoDB는 auto-increment 카운터를 메모리에만 두고
         재시작 시 `MAX(id) + 1`로 다시 계산했습니다. 최신 행들을 삭제하고
         서버를 재시작하면 그 id들 — 곧 그 코드들 — 이 다시 발급됩니다.
         MySQL 8.0+는 카운터를 영속화합니다. 5.7이라면 최신 행을 절대
         삭제하지 않거나, 별도 카운터 테이블로 코드를 발급하세요.
 
-    `TRUNCATE TABLE`과 더 낮은 값으로의 `ALTER TABLE … AUTO_INCREMENT = n`
-    도 카운터를 되감습니다 — 운영 중인 네임스페이스에서는 금지입니다.
+    `TRUNCATE TABLE`도, 값을 더 낮추는 `ALTER TABLE … AUTO_INCREMENT = n`도
+    카운터를 되감습니다 — 운영 중인 네임스페이스에서는 금지입니다.
 
 === "MariaDB"
 
@@ -268,7 +268,7 @@ encode → insert). auto-increment/identity 컬럼은 insert *후에야* 카운�
     ```
 
     MariaDB(10.3+)에는 진짜 시퀀스가 있으니 그걸 쓰세요: 시퀀스 상태는
-    영속화되어 재시작을 견딥니다. `AUTO_INCREMENT`도 동작하지만, MariaDB는
+    영속화되어 재시작을 견딥니다. `AUTO_INCREMENT`도 동작하지만 MariaDB는
     재시작 시 메모리 카운터를 여전히 `MAX(id) + 1`로 재계산합니다(MySQL
     8.0의 영속화를 채택하지 않았습니다). 즉 최신-행-삭제-후-재시작 재사용
     위험이 **모든** MariaDB 버전에 적용됩니다. 크래시로 날아간 `CACHE`
@@ -284,7 +284,7 @@ encode → insert). auto-increment/identity 컬럼은 insert *후에야* 카운�
     ```
 
     여기서 `AUTOINCREMENT` 키워드는 스타일이 아니라 **필수**입니다: 그냥
-    `INTEGER PRIMARY KEY`는 `max(rowid) + 1`을 고르므로, 최신 행을
+    `INTEGER PRIMARY KEY`는 `max(rowid) + 1`을 고르므로 최신 행을
     삭제하면 그 id — 곧 그 코드 — 가 재발급됩니다. `AUTOINCREMENT`(내부
     `sqlite_sequence` 테이블 기반)는 id가 절대 재사용되지 않음을
     보장합니다. 카운터는 `last_insert_rowid()`로 읽고, `sqlite_sequence`의
@@ -312,14 +312,14 @@ encode → insert). auto-increment/identity 컬럼은 insert *후에야* 카운�
 
     또는 `IDENTITY(0,1)` + insert 후 `SCOPE_IDENTITY()`. identity 캐시는
     비정상 재시작 후 값 블록을 건너뛸 수 있습니다(`bigint`는 최대
-    10,000개) — 갭이니 괜찮습니다. 더 낮은 `n`으로의
-    `DBCC CHECKIDENT (orders, RESEED, n)`, `ALTER SEQUENCE … RESTART`는
-    금지이고, `TRUNCATE TABLE`이 identity를 리시드한다는 것도 기억하세요
+    10,000개) — 갭이니 괜찮습니다. `n`을 더 낮게 주는
+    `DBCC CHECKIDENT (orders, RESEED, n)`와 `ALTER SEQUENCE … RESTART`는
+    금지이고 `TRUNCATE TABLE`이 identity를 리시드한다는 것도 기억하세요
     — 셋 다 카운터를 되감습니다.
 
 ORM이 id 생성을 뭐라고 부르든 — Django의 `AutoField`, JPA의
 `@GeneratedValue`, ActiveRecord의 `id`, Prisma의 `autoincrement()` — 결국
-위 메커니즘 중 하나로 내려가고, 같은 규칙이 그대로 적용됩니다.
+위 메커니즘 중 하나로 내려가고 같은 규칙이 그대로 적용됩니다.
 
 | 엔진 | 카운터 소스 | 무해 (갭) | 치명 (재사용) — 운영 네임스페이스에서 금지 |
 |------|-------------|-----------|---------------------------------------------|

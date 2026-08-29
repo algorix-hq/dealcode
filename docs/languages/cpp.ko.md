@@ -1,6 +1,6 @@
 # C++
 
-[C 코어](c.ko.md)를 감싸는 C++17 래퍼 — 알고리즘은 C에서 한 번 구현되고,
+[C 코어](c.ko.md)를 감싸는 C++17 래퍼 — 알고리즘은 C에서 한 번 구현되고
 이 래퍼는 RAII, 예외, `std::string` 사용성을 더합니다. 헤더 온리입니다:
 `dealcode.hpp`를 include하고 C 코어와 OpenSSL libcrypto를 링크하세요.
 
