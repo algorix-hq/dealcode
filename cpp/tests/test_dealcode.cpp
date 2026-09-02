@@ -3,8 +3,10 @@
 // Covers: the 9 official NIST FF1 sample vectors (via the C core's private
 // FF1 seam), every config/vector/invalid-code/normalize case in
 // testvectors/v1.json, exception behaviour, move semantics, roundtrip
-// sweeps across stage boundaries, and fixed-length cycling mode (SPEC
-// section 11: every case in testvectors/v1c.json plus behaviour tests).
+// sweeps across stage boundaries, fixed-length cycling mode (SPEC
+// section 11: every case in testvectors/v1c.json plus behaviour tests),
+// and integer range mode (SPEC section 12: every case in
+// testvectors/v1r.json plus behaviour tests).
 
 #include <algorithm>
 #include <cstdint>
@@ -1006,6 +1008,330 @@ static void test_embedded_nul_rejection()
     CHECK(c.decode(code) == 826816, "clean decode still works");
 }
 
+// ------------------------------------------------------------------------
+// Integer range mode (SPEC section 12)
+// ------------------------------------------------------------------------
+
+static dealcode::RangeCodec make_range_codec(const tv_range_config_t &cfg)
+{
+    dealcode::RangeOptions opts;
+    opts.low = cfg.low;
+    opts.high = cfg.high;
+    opts.domain = cfg.domain;
+    if (cfg.key_hex != nullptr)
+        return dealcode::RangeCodec(hex_decode(cfg.key_hex), opts);
+    return dealcode::RangeCodec(std::string_view(cfg.key_string), opts);
+}
+
+static void test_v1r_vectors()
+{
+    for (std::size_t i = 0; i < TV_V1R_COUNT; i++) {
+        const tv_range_config_t &cfg = TV_V1R[i];
+        try {
+            dealcode::RangeCodec codec = make_range_codec(cfg);
+
+            // derived domain (SPEC section 12.2): radix, m, capacity must
+            // all match the vector file (capacity == radix^m pins m).
+            CHECK(codec.radix() == static_cast<int>(cfg.radix),
+                  "v1r %s: radix %d, want %u", cfg.name, codec.radix(),
+                  cfg.radix);
+            CHECK(codec.capacity() == cfg.capacity,
+                  "v1r %s: capacity %llu, want %llu", cfg.name,
+                  static_cast<unsigned long long>(codec.capacity()),
+                  static_cast<unsigned long long>(cfg.capacity));
+            {
+                std::uint64_t power = 1;
+                bool overflow = false;
+                for (int j = 0; j < cfg.m; j++) {
+                    if (power > UINT64_MAX / cfg.radix) {
+                        overflow = true;
+                        break;
+                    }
+                    power *= cfg.radix;
+                }
+                CHECK(!overflow && power == cfg.capacity,
+                      "v1r %s: capacity must equal radix^m", cfg.name);
+            }
+            CHECK(codec.low() == cfg.low && codec.high() == cfg.high,
+                  "v1r %s: low/high accessors", cfg.name);
+
+            for (std::size_t j = 0; j < cfg.n_vectors; j++) {
+                const tv_range_pair_t &tv = cfg.vectors[j];
+                CHECK(codec.encode(tv.n) == tv.code,
+                      "v1r %s: encode(%llu) != %llu", cfg.name,
+                      static_cast<unsigned long long>(tv.n),
+                      static_cast<unsigned long long>(tv.code));
+                CHECK(codec.decode(tv.code) == tv.n,
+                      "v1r %s: decode(%llu) != %llu", cfg.name,
+                      static_cast<unsigned long long>(tv.code),
+                      static_cast<unsigned long long>(tv.n));
+            }
+
+            for (std::size_t j = 0; j < cfg.n_invalid_codes; j++) {
+                CHECK(throws<dealcode::InvalidCodeError>(
+                          [&] { codec.decode(cfg.invalid_codes[j]); }),
+                      "v1r %s: decode(%llu) must throw InvalidCodeError",
+                      cfg.name,
+                      static_cast<unsigned long long>(cfg.invalid_codes[j]));
+            }
+
+            for (std::size_t j = 0; j < cfg.n_range_counters; j++) {
+                CHECK(throws<dealcode::RangeError>(
+                          [&] { codec.encode(cfg.range_counters[j]); }),
+                      "v1r %s: encode(%llu) must throw RangeError", cfg.name,
+                      static_cast<unsigned long long>(cfg.range_counters[j]));
+            }
+        } catch (const std::exception &e) {
+            CHECK(false, "v1r %s: unexpected exception: %s", cfg.name,
+                  e.what());
+        }
+    }
+}
+
+static void test_v1r_invalid_configs()
+{
+    for (std::size_t i = 0; i < TV_V1R_INVALID_CONFIG_COUNT; i++) {
+        const tv_range_invalid_config_t &tv = TV_V1R_INVALID_CONFIGS[i];
+        bool threw = false;
+        std::string what;
+        try {
+            dealcode::RangeOptions opts;
+            opts.low = tv.low;
+            opts.high = tv.high;
+            if (tv.domain != nullptr)
+                opts.domain = tv.domain;
+            if (tv.key_hex != nullptr)
+                dealcode::RangeCodec(hex_decode(tv.key_hex), opts);
+            else
+                dealcode::RangeCodec(std::string_view(tv.key_string), opts);
+        } catch (const dealcode::ConfigError &e) {
+            threw = true;
+            what = e.what();
+        }
+        CHECK(threw, "v1r invalid-config %s: must throw ConfigError",
+              tv.name);
+        CHECK(threw && what.size() > std::string("RangeCodec(): ").size(),
+              "v1r invalid-config %s: what() must carry a diagnostic",
+              tv.name);
+    }
+}
+
+// Range construction reuses the plain key/domain guards verbatim; check
+// the exact diagnostics (prefixed RangeCodec()), plus the bound rules.
+static void test_range_config_errors()
+{
+    try {
+        dealcode::RangeCodec codec(std::string_view("crockford"),
+                                   { 100000, 999999, "" });
+        CHECK(false, "range guard B: \"crockford\" must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "RangeCodec(): string key \"crockford\" is a preset "
+                  "alphabet name — did you swap the key and alphabet "
+                  "fields?",
+              "range guard B: exact message, got \"%s\"", e.what());
+    }
+    // byte keys spelling a preset name are unaffected
+    {
+        const char *name = "crockford";
+        dealcode::RangeCodec codec(
+            reinterpret_cast<const std::uint8_t *>(name), 9,
+            { 100000, 999999, "" });
+        CHECK(codec.decode(codec.encode(5)) == 5,
+              "range guard B: byte key \"crockford\" accepted");
+    }
+
+    // bound rules
+    try {
+        dealcode::RangeCodec codec("k", { 10, 9, "" });
+        CHECK(false, "range: low > high must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) == "RangeCodec(): low 10 > high 9",
+              "range: low > high message, got \"%s\"", e.what());
+    }
+    try {
+        dealcode::RangeCodec codec("k", { 0, 98, "" });
+        CHECK(false, "range: span 99 must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "RangeCodec(): range [0, 98] spans 99 values; FF1 needs "
+                  "at least 100",
+              "range: span message, got \"%s\"", e.what());
+    }
+    try {
+        dealcode::RangeCodec codec("k", { 0, UINT64_C(1) << 63, "" });
+        CHECK(false, "range: high 2^63 must throw");
+    } catch (const dealcode::ConfigError &e) {
+        CHECK(std::string(e.what()) ==
+                  "RangeCodec(): high 9223372036854775808 exceeds 2^63 - 1",
+              "range: high bound message, got \"%s\"", e.what());
+    }
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::RangeCodec codec("k", {}); // defaults {0, 0}: span 1
+          }),
+          "range: default-constructed options must throw");
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::RangeCodec codec("",
+                                         { 100000, 999999, "" });
+          }),
+          "range: empty string key");
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::RangeCodec codec(
+                  "k", { 100000, 999999, std::string(256, 'a') });
+          }),
+          "range: domain > 255 bytes");
+
+    // embedded NUL rejection, as in Codec
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::RangeCodec codec(std::string("ab\0cd", 5),
+                                         { 100000, 999999, "" });
+          }),
+          "range: NUL in string key");
+    CHECK(throws<dealcode::ConfigError>([] {
+              dealcode::RangeCodec codec(
+                  "k", { 100000, 999999, std::string("x\0y", 3) });
+          }),
+          "range: NUL in domain");
+
+    // boundaries that must SUCCEED
+    {
+        dealcode::RangeCodec codec("k", { 0, 99, "" }); // span exactly 100
+        CHECK(codec.capacity() == 100 && codec.radix() == 10,
+              "range: span 100 -> 10^2");
+    }
+    {
+        // full counter space: N = 2^63 = 128^9 exactly
+        dealcode::RangeCodec codec("k",
+                                   { 0, (UINT64_C(1) << 63) - 1, "" });
+        CHECK(codec.capacity() == (UINT64_C(1) << 63) &&
+                  codec.radix() == 128,
+              "range: N == 2^63 -> 128^9, capacity 2^63");
+        const std::uint64_t top = (UINT64_C(1) << 63) - 1;
+        CHECK(codec.decode(codec.encode(top)) == top,
+              "range: full-space top counter roundtrips");
+    }
+}
+
+// SPEC section 12.3/12.4 behaviour: bijection when N is an admissible
+// power, dead-zone rejection, and low/high/domain binding the permutation.
+static void test_range_behaviour()
+{
+    // N = 121 = 11^2: no dead zone, encode is a bijection onto the range
+    {
+        dealcode::RangeCodec codec("range-behaviour-key",
+                                   { 1000, 1120, "" });
+        CHECK(codec.capacity() == 121 && codec.radix() == 11,
+              "range perm: capacity 121 = 11^2");
+        std::vector<std::uint64_t> codes;
+        for (std::uint64_t n = 0; n < 121; n++) {
+            codes.push_back(codec.encode(n));
+            CHECK(codes.back() >= 1000 && codes.back() <= 1120,
+                  "range perm: code in [1000, 1120]");
+            CHECK(codec.decode(codes.back()) == n,
+                  "range perm: roundtrip n=%llu",
+                  static_cast<unsigned long long>(n));
+        }
+        std::sort(codes.begin(), codes.end());
+        bool covers = codes.size() == 121;
+        for (std::size_t i = 0; covers && i < codes.size(); i++)
+            covers = codes[i] == 1000 + i;
+        CHECK(covers, "range perm: the 121 codes cover the whole range");
+    }
+
+    // dead zone: [low + capacity, high] never issued, rejected by decode
+    {
+        dealcode::RangeCodec codec("range-behaviour-key",
+                                   { 100000, 999999, "" });
+        CHECK(codec.capacity() == 884736, "range dead: capacity 96^3");
+        const std::uint64_t top_issued = 100000 + codec.capacity() - 1;
+        const std::uint64_t last = codec.encode(codec.capacity() - 1);
+        CHECK(last >= 100000 && last <= top_issued &&
+                  codec.decode(last) == codec.capacity() - 1,
+              "range dead: last counter roundtrips in the issued slice");
+        for (std::uint64_t dead : { top_issued + 1, UINT64_C(999999) })
+            CHECK(throws<dealcode::InvalidCodeError>(
+                      [&] { codec.decode(dead); }),
+                  "range dead: decode(%llu) must throw",
+                  static_cast<unsigned long long>(dead));
+        CHECK(throws<dealcode::InvalidCodeError>(
+                  [&] { codec.decode(99999); }),
+              "range dead: below low throws");
+        CHECK(throws<dealcode::InvalidCodeError>(
+                  [&] { codec.decode(1000000); }),
+              "range dead: above high throws");
+        CHECK(throws<dealcode::RangeError>(
+                  [&] { codec.encode(codec.capacity()); }),
+              "range dead: encode(capacity) throws");
+        CHECK(throws<dealcode::RangeError>(
+                  [&] { codec.encode(UINT64_MAX); }),
+              "range dead: encode(UINT64_MAX) throws");
+    }
+
+    // low, high and domain all bind the permutation (SPEC section 12.3)
+    {
+        dealcode::RangeCodec a("k", { 100000, 999999, "" });
+        dealcode::RangeCodec b("k", { 100000, 999998, "" });
+        dealcode::RangeCodec c("k", { 100000, 999999, "x" });
+        CHECK(a.capacity() == b.capacity(),
+              "range bind: same capacity for a fair comparison");
+        bool ab = true, ac = true, bc = true;
+        for (std::uint64_t n = 0; n < 32; n++) {
+            const std::uint64_t ca = a.encode(n), cb = b.encode(n),
+                                cc = c.encode(n);
+            ab = ab && ca == cb;
+            ac = ac && ca == cc;
+            bc = bc && cb == cc;
+        }
+        CHECK(!ab && !ac && !bc,
+              "range bind: low/high/domain must all bind the permutation");
+    }
+}
+
+static void test_range_move_semantics()
+{
+    dealcode::RangeCodec a("move-key", { 100000, 999999, "" });
+    const std::uint64_t code = a.encode(42);
+    const std::uint64_t cap = a.capacity();
+
+    dealcode::RangeCodec b = std::move(a);
+    CHECK(b.encode(42) == code && b.decode(code) == 42,
+          "range move: moved-to codec works");
+    CHECK(b.capacity() == cap && b.low() == 100000 && b.high() == 999999,
+          "range move: accessors preserved");
+
+    // moved-from: accessors are safe (0), operations throw
+    CHECK(a.capacity() == 0 && a.low() == 0 && a.high() == 0 &&
+              a.radix() == 0,
+          "range move: moved-from accessors are inert");
+    CHECK(throws<dealcode::ConfigError>([&] { a.encode(1); }),
+          "range move: moved-from encode throws");
+    CHECK(throws<dealcode::ConfigError>([&] { a.decode(code); }),
+          "range move: moved-from decode throws");
+
+    dealcode::RangeCodec c("other-key", { 100000, 999999, "" });
+    c = std::move(b);
+    CHECK(c.encode(42) == code, "range move: move-assignment works");
+}
+
+static void test_range_exception_types()
+{
+    dealcode::RangeCodec codec("exc-key", { 100000, 999999, "" });
+
+    // hierarchy: all range errors root at dealcode::Error/std::runtime_error
+    CHECK(throws<dealcode::InvalidCodeError>([&] { codec.decode(0); }),
+          "range exc: below low -> InvalidCodeError");
+    CHECK(throws<dealcode::Error>([&] { codec.decode(0); }),
+          "range exc: derives from Error");
+    CHECK(throws<std::runtime_error>([&] { codec.decode(0); }),
+          "range exc: derives from std::runtime_error");
+    CHECK(throws<dealcode::RangeError>(
+              [&] { codec.encode(codec.capacity()); }),
+          "range exc: exhausted counter -> RangeError");
+    CHECK(throws<dealcode::Error>(
+              [&] { codec.encode(codec.capacity()); }),
+          "range exc: RangeError derives from Error");
+}
+
 int main()
 
 {
@@ -1027,6 +1353,12 @@ int main()
     test_cycle_behaviour();
     test_cycle_move_semantics();
     test_cycle_exception_types();
+    test_v1r_vectors();
+    test_v1r_invalid_configs();
+    test_range_config_errors();
+    test_range_behaviour();
+    test_range_move_semantics();
+    test_range_exception_types();
 
     std::printf("%d checks, %d failures\n", g_checks, g_failures);
     if (g_failures != 0) {

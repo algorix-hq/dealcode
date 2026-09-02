@@ -13,12 +13,14 @@ from ._codec import (
 )
 from ._cycle import CyclingDealcode
 from ._ff1 import FF1
+from ._range import RangeDealcode
 
 __version__ = "1.0.1"
 
 __all__ = [
     "Dealcode",
     "CyclingDealcode",
+    "RangeDealcode",
     "DealcodeError",
     "ConfigError",
     "RangeError",

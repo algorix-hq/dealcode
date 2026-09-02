@@ -16,6 +16,7 @@ from dealcode import (  # noqa: E402
     CyclingDealcode,
     Dealcode,
     InvalidCodeError,
+    RangeDealcode,
     RangeError,
 )
 
@@ -258,6 +259,122 @@ def generate_v1c() -> dict:
     return out
 
 
+# --- integer range mode (SPEC §12, testvectors/v1r.json) --------------------
+
+RANGE_MODE_CONFIGS = [
+    # the motivating shape: 6-digit codes with no leading zero (96^3 = 884736)
+    dict(name="no-leading-zero-6", key=KEY128, low=100_000, high=999_999, domain=""),
+    dict(name="bookings-domain", key=KEY256, low=100_000, high=999_999, domain="bookings"),
+    # N is an admissible power: capacity == N exactly (100^3)
+    dict(name="full-million", key=KEY128, low=0, high=999_999, domain=""),
+    # smallest legal span (10^2 = 100, no dead zone)
+    dict(name="min-span-100", key=KEY192, low=0, high=99, domain=""),
+    # small span parked at the very top of the 2^63 space
+    dict(name="min-span-high-offset", key=KEY128, low=2**63 - 101, high=2**63 - 1, domain=""),
+    # the whole counter space: N = 2^63 = 128^9, capacity == N
+    dict(name="full-counter-space", key=KEY128, low=0, high=2**63 - 1, domain=""),
+    # capacity tie (65536 = 256^2 = 16^4 = 4^8 = 2^16): smallest m must win
+    dict(name="tie-smallest-m", key=KEY128, low=1_000, high=66_535, domain=""),
+    # 5-digit no-leading-zero: N=90000 -> 44^3 = 85184
+    dict(name="five-digit-string-key", key=KEY_STR, low=10_000, high=99_999, domain=""),
+    dict(name="korean-domain", key=KEY128, low=100_000, high=999_999, domain="예약·코드"),
+    # domain at the 255-UTF-8-byte limit (85 three-byte characters)
+    dict(name="domain-255b", key=KEY128, low=100_000, high=999_999, domain="가" * 85),
+    # hex-looking STRING key is KDF'd, never hex-decoded: these two differ
+    dict(name="hexlike-string-key", key="deadbeefdeadbeefdeadbeefdeadbeef", low=100_000, high=999_999, domain=""),
+    dict(name="hexlike-bytes-key", key=bytes.fromhex("deadbeefdeadbeefdeadbeefdeadbeef"), low=100_000, high=999_999, domain=""),
+]
+
+RANGE_MODE_INVALID_CONFIGS = [
+    dict(name="span-under-100", key_hex=KEY128.hex(), low="0", high="98"),
+    dict(name="low-above-high", key_hex=KEY128.hex(), low="10", high="9"),
+    dict(name="negative-low", key_hex=KEY128.hex(), low="-1", high="200"),
+    dict(name="high-at-2pow63", key_hex=KEY128.hex(), low="0", high=str(2**63)),
+    dict(name="preset-name-as-key", key_string="crockford", low="100000", high="999999"),
+    dict(name="empty-key", key_string="", low="100000", high="999999"),
+    dict(name="domain-256-bytes", key_hex=KEY128.hex(), low="100000", high="999999", domain="x" * 256),
+]
+
+
+def range_mode_counters_for(codec) -> list:
+    cap = codec.capacity
+    ns = {0, 1, 2, 7, 42, cap // 2, cap - 2, cap - 1}
+    # the IEEE-double / JS Number.MAX_SAFE_INTEGER seam, where it exists
+    ns.update(s for s in (2**53 - 1, 2**53, 2**53 + 1) if s < cap)
+    ns.update(samples(0, cap, 4))
+    return sorted(n for n in ns if 0 <= n < cap)
+
+
+def range_mode_invalid_codes_for(codec) -> list:
+    top = codec.low + codec.capacity  # first dead-zone value (if any)
+    bad = {codec.high + 1, 2**63, 2**64}
+    if codec.low > 0:
+        bad.update({codec.low - 1, 0})
+    if top <= codec.high:
+        bad.update({top, codec.high})  # both ends of the dead zone
+    out = sorted(bad)
+    for c in out:
+        try:
+            codec.decode(c)
+        except InvalidCodeError:
+            pass
+        else:
+            raise AssertionError(f"invalid range code accepted: {c}")
+    return [str(c) for c in out]
+
+
+def generate_v1r() -> dict:
+    out = {"spec": "dealcode/v1r", "configs": []}
+    for c in RANGE_MODE_CONFIGS:
+        codec = RangeDealcode(c["key"], low=c["low"], high=c["high"], domain=c["domain"])
+        cfg = {
+            "name": c["name"],
+            "low": str(c["low"]),
+            "high": str(c["high"]),
+            "domain": c["domain"],
+            "radix": codec.radix,
+            "m": codec._m,
+            "capacity": str(codec.capacity),
+        }
+        if isinstance(c["key"], str):
+            cfg["key_string"] = c["key"]
+        else:
+            cfg["key_hex"] = c["key"].hex()
+        cfg["vectors"] = []
+        for n in range_mode_counters_for(codec):
+            code = codec.encode(n)
+            assert codec.low <= code < codec.low + codec.capacity
+            assert codec.decode(code) == n
+            cfg["vectors"].append({"n": str(n), "code": str(code)})
+        cfg["invalid_codes"] = range_mode_invalid_codes_for(codec)
+        cfg["range_counters"] = ["-1", str(codec.capacity), str(2**63), str(2**64)]
+        for c_str in cfg["range_counters"]:
+            try:
+                codec.encode(int(c_str))
+            except RangeError:
+                pass
+            else:
+                raise AssertionError(f"range-mode counter accepted: {c_str}")
+        out["configs"].append(cfg)
+
+    out["invalid_configs"] = []
+    for ic in RANGE_MODE_INVALID_CONFIGS:
+        key = bytes.fromhex(ic["key_hex"]) if "key_hex" in ic else ic["key_string"]
+        try:
+            RangeDealcode(
+                key,
+                low=int(ic["low"]),
+                high=int(ic["high"]),
+                domain=ic.get("domain", ""),
+            )
+        except ConfigError:
+            pass
+        else:
+            raise AssertionError(f"invalid range config accepted: {ic['name']}")
+        out["invalid_configs"].append(dict(ic))
+    return out
+
+
 def samples(lo: int, hi: int, count: int = 3):
     """Deterministic pseudo-random values in [lo, hi)."""
     span = hi - lo
@@ -462,6 +579,16 @@ def main() -> None:
     print(
         f"wrote {path_c} ({len(v1c['configs'])} configs, {total_c} vectors, "
         f"{invalid_c} invalid)"
+    )
+
+    v1r = generate_v1r()
+    path_r = ROOT / "testvectors" / "v1r.json"
+    path_r.write_text(json.dumps(v1r, indent=2) + "\n")
+    total_r = sum(len(c["vectors"]) for c in v1r["configs"])
+    invalid_r = sum(len(c["invalid_codes"]) for c in v1r["configs"])
+    print(
+        f"wrote {path_r} ({len(v1r['configs'])} configs, {total_r} vectors, "
+        f"{invalid_r} invalid)"
     )
 
 

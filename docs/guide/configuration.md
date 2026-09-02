@@ -130,6 +130,40 @@ Constraints: `2 ≤ L ≤ 128`, `radix^L ≥ 100`, and `radix^L ≤ 2^63` (a cyc
 must be completable within the counter space — for larger fixed shapes use
 plain `min_length == max_length`).
 
+### Integer range mode { #integer-range-mode }
+
+When codes must be **integers in a range you choose** — the classic case is
+6-digit numbers with no leading zero, `[100000, 999999]` — the range mode
+(SPEC §12) issues integer codes instead of alphabet strings:
+
+```python
+codec = RangeDealcode(key, low=100_000, high=999_999, domain="pins")
+codec.capacity        # 884736 — see below
+code = codec.encode(0)   # e.g. 461102 — an int, never with a leading zero
+codec.decode(code)       # 0
+```
+
+Because every code *is* an integer, it survives an `INT` column, a
+spreadsheet, or any system that would strip a leading zero from a string
+code — the round-trip hazard that string codes in a digits alphabet carry.
+
+Two properties to understand before shipping it:
+
+- **It is walk-free.** Encode and decode are always exactly one FF1 call —
+  no cycle-walking, no retry loop of any kind, in any implementation.
+- **Capacity is the largest FF1 domain that fits the range, not the full
+  range.** FF1 domains are `radix^m`; for `[100000, 999999]` the best fit
+  under the byte-per-numeral bound is `96³ = 884,736` of the 900,000 values
+  (98.3%), so issued codes span `[100000, 984735]` and the top slice is
+  never issued (decode rejects it). When the span is itself an admissible
+  power — `[0, 999999]` is `100³` — capacity covers the range exactly.
+  Read `capacity` from the codec and monitor counter consumption against
+  it; when the range is exhausted, it is exhausted (no growth, no cycles).
+
+Constraints: `0 ≤ low ≤ high ≤ 2^63 − 1` and `high − low + 1 ≥ 100`. The
+frozen-configuration rule below applies to `key`, `low`, `high`, and
+`domain`.
+
 ## The configuration is frozen once shipped
 
 !!! danger "Write-once configuration"

@@ -9,6 +9,7 @@
 - Display and parsing: good/bad
 - Database wiring
 - Cycling mode (fixed-length): good/bad
+- Range mode (integer codes): good/bad
 - Cross-service use
 
 ## Constructing a codec (all seven languages)
@@ -209,6 +210,32 @@ n = pnr.decode(code, current_cycle)   # code may be from the previous cycle
 ```
 
 Retire or expire cycle `e`'s rows before issuing from cycle `e+1`.
+
+## Range mode (integer codes): good/bad
+
+Integer codes from `[low, high]` — e.g. 6-digit numbers with no leading
+zero. Codes are ints (safe in an `INT` column); exactly one FF1 call, no
+retries.
+
+```python
+pins = RangeDealcode(key, low=100_000, high=999_999, domain="pins")
+code = pins.encode(n)     # int in [100000, 984735]
+n = pins.decode(code)
+```
+
+```python
+# BAD: assuming the full range is issuable — capacity is the largest FF1
+# domain that fits (884736 here), and encode(884736) raises RangeError
+for n in range(999_999 - 100_000 + 1):
+    pins.encode(n)
+
+# GOOD: read capacity from the codec and monitor consumption against it
+assert n < pins.capacity
+```
+
+No cycles in this mode: uniqueness is plain (`UNIQUE(code)` stays a
+tripwire), and when the range is exhausted it is exhausted — plan the range
+(or a new domain) accordingly.
 
 ## Cross-service use
 

@@ -98,6 +98,7 @@ Dealcode(key, "dec",       domain="orders")        # e.g. '839207' — digits on
 Dealcode(key, "base62",    min_length=8)           # e.g. 'tHx93bQk'
 Dealcode(key, "hex", min_length=16, max_length=16) # fixed-length tokens
 CyclingDealcode(key, "crockford", length=6)        # fixed forever — reuses the space per cycle (see guide)
+RangeDealcode(key, low=100_000, high=999_999)      # integer codes — 6 digits, never a leading zero (see guide)
 Dealcode(key, "!@#$%^&*")                          # your own alphabet, why not
 ```
 

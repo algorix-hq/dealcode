@@ -19,3 +19,8 @@ def v1_vectors():
 @pytest.fixture(scope="session")
 def v1c_vectors():
     return json.loads((VECTOR_DIR / "v1c.json").read_text())
+
+
+@pytest.fixture(scope="session")
+def v1r_vectors():
+    return json.loads((VECTOR_DIR / "v1r.json").read_text())

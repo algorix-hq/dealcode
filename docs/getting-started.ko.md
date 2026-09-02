@@ -217,4 +217,6 @@ Dealcode(key, "hex", min_length=16, max_length=16)   # 고정 길이 토큰
 
 코드 공간이 다 차더라도 코드 길이가 영원히 그대로여야 한다면, 설정
 가이드의 [고정 길이 순환 모드](guide/configuration.ko.md#fixed-length-cycling-mode)를
+보세요. 직접 고른 범위 안의 정수 코드가 필요하다면(예: 선행 0 없는 6자리
+숫자) [정수 범위 모드](guide/configuration.ko.md#integer-range-mode)를
 보세요.

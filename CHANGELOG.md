@@ -7,6 +7,19 @@ scope; format v1 outputs never change (see SPEC.md).
 
 ## Unreleased
 
+### Added
+
+- **Integer range mode (v1r, SPEC §12)** in all seven implementations:
+  codes issued as *integers* from an application-chosen `[low, high]` —
+  e.g. `low=100000, high=999999` for 6-digit codes with no leading zero,
+  safe to store in integer columns. Walk-free by construction (always
+  exactly one FF1 call): the mode uses the largest FF1 domain
+  `radix^m ≤ high − low + 1` with `radix ≤ 256` (96³ = 884,736 for the
+  900,000-value range; exact when the span is such a power). New tweak
+  namespace `dealcode/v1r/`, byte-disjoint from v1/v1c; new shared
+  conformance vectors `testvectors/v1r.json`. Existing v1/v1c outputs are
+  unchanged.
+
 ## 1.0.1 — 2026-08-28
 
 Maintenance: dependency and toolchain refresh plus registry-page polish.

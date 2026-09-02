@@ -286,8 +286,9 @@ top-level `invalid_configs[]` must fail construction (`ConfigError`).
 
 Passing both files is the definition of conformance for the core codec.
 Additionally, `testvectors/v1c.json` covers the fixed-length cycling mode
-(§11) — required for implementations that ship the mode (§11.4); all seven
-in this repository do.
+(§11) and `testvectors/v1r.json` the integer range mode (§12) — each
+required for implementations that ship the respective mode (§11.4, §12.5);
+all seven in this repository ship both.
 
 ## 10. Security model (informative)
 
@@ -389,3 +390,133 @@ reject every `invalid_cycles[]` value when passed as the cycle to decode
 (`RangeError`), and fail construction for every `invalid_configs[]` entry
 (`ConfigError`). Passing it is required for conformance of any
 implementation that ships the mode, and all seven in this repository do.
+
+## 12. Integer range mode (v1r)
+
+An additive mode for codes that must be **integers in an application-chosen
+range** — e.g. 6-digit numbers with no leading zero (`[100000, 999999]`),
+which survive round-trips through integer columns, spreadsheets, and any
+system that would strip a leading zero from a string code. Codes in this
+mode are integers, not alphabet strings; §3–§5 and §7 do not apply.
+
+The mode is deliberately **walk-free**: encode and decode are always exactly
+one FF1 call. FF1 domains are `radix^m`, and an arbitrary range size `N` is
+generally not such a power, so instead of forcing the exact range with
+cycle-walking (re-encrypting until the value lands inside — unbounded worst
+case, and a per-language loop whose semantics must never drift), the mode
+uses the **largest FF1 domain that fits inside the range** and issues codes
+from `low` upward through it. The trade is a small, exactly-computable slice
+of the range that is never issued (< 4 % for `N ≥ 10^5`; zero when `N`
+itself is an admissible power) in exchange for a constant-time, loop-free
+mapping.
+
+Like cycling mode, this mode lives in its own tweak namespace and changes
+nothing about §1–§11: the byte at offset 11 is `/` for v1, `c` for v1c and
+`r` for v1r, so the three tweak sets are pairwise disjoint for every
+possible configuration.
+
+### 12.1 Configuration
+
+A range codec is defined by `key` (§2.1, same rules and the same
+preset-name guard), integers `low` and `high`, and `domain` (same rules as
+§2). Constraints, all `ConfigError` at construction:
+
+- `0 ≤ low ≤ high ≤ 2^63 − 1`;
+- `N = high − low + 1 ≥ 100` (FF1 structural minimum, §2).
+
+### 12.2 Domain selection (normative)
+
+The internal FF1 domain is the largest `radix^m ≤ N` with
+`2 ≤ radix ≤ 256` and `2 ≤ m ≤ 63`; among equal capacities the smallest
+`m` wins. Deterministically:
+
+```
+best_capacity = 0; best = (radix, m) = ⊥
+for m in 2 .. 63:
+    r = min(iroot(N, m), 256)     # iroot = exact integer m-th root
+    if r < 2: continue
+    c = r^m                        # c ≤ N by construction
+    if c > best_capacity:          # strict '>' ⇒ smallest m on ties
+        best_capacity = c; best = (r, m)
+radix, m = best; capacity = best_capacity
+```
+
+`iroot(N, m)` is the largest integer `r` with `r^m ≤ N` and MUST be
+computed with exact integer arithmetic (binary search with
+overflow-checked powers, or equivalent) — floating-point roots MUST NOT
+be used. The loop always finds a candidate (`m = 2` gives
+`r = min(⌊√N⌋, 256) ≥ 10` for `N ≥ 100`, so `capacity ≥ 100`).
+
+The `radix ≤ 256` bound is structural: it keeps every numeral in one byte,
+matching the numeral representation all seven FF1 cores were validated
+with. It costs little — with radix up to 256 available, consecutive
+admissible powers are dense (`(r+1)^m / r^m ≈ 1 + m/r`), giving
+`capacity / N > 96 %` for all `N ≥ 10^5` and exactly `N` whenever `N` is
+an admissible power (examples: `N = 10^6` → `100^3`, capacity = N;
+`N = 2^63` → `128^9`, capacity = N; `N = 900 000` → `96^3 = 884 736`,
+98.3 %).
+
+Derived values (all fixed at construction): `capacity`, and the issued
+code range `[low, low + capacity − 1]`. Values in
+`[low + capacity, high]` — the **dead zone** — are never issued and are
+rejected by decode. Applications needing the top of the range exactly
+SHOULD widen `high` so that the capacity covers what they need.
+
+### 12.3 Encoding and decoding
+
+Counters are `0 ≤ n < capacity` (`RangeError` outside — this mode has no
+staging and no cycles; when the range is exhausted, it is exhausted).
+
+Encode:
+
+1. `X = STR(n, radix, m)` — `n` as `m` big-endian base-`radix` numerals.
+2. Tweak `T` = the UTF-8 bytes of
+   `"dealcode/v1r/" + decimal(low) + "/" + decimal(high) + "/" + domain`,
+   where `decimal(·)` is the base-10 rendering with no leading zeros
+   (`"0"` for zero). With `domain` ≤ 255 bytes the tweak is at most 310
+   bytes. Binding `low` and `high` into the tweak makes different ranges
+   unrelated permutations, exactly as `domain` does.
+3. `Y = FF1.Encrypt(key, T, X)` (§6); the code is the integer
+   `low + NUM(Y, radix)`.
+
+Decode (input: integer code `c`):
+
+1. Reject `c < low` or `c > high` (`InvalidCodeError`).
+2. Reject `c ≥ low + capacity` (dead zone, `InvalidCodeError`).
+3. `Y = STR(c − low, radix, m)`; `n = NUM(FF1.Decrypt(key, T, Y), radix)`.
+   `n < capacity` always holds (FF1 permutes `[0, radix^m)`), so no
+   further range check is needed. Return `n`.
+
+Codes are integers end to end; implementations MUST NOT accept or produce
+string codes in this mode (rendering is the application's concern, and
+`decimal(code)` never has a leading zero when `low ≥ 10^(k−1)`).
+
+### 12.4 Semantics (normative for applications)
+
+- Uniqueness is structural, as in plain v1: distinct counters in
+  `[0, capacity)` give distinct codes in `[low, low + capacity)`.
+- The **effective capacity is `capacity`, not `N`** — surface it
+  (implementations MUST expose it) and monitor counter consumption
+  against it.
+- The security model is §10 unchanged: same FF1 core, one call per
+  operation; adding the public constant `low` is a fixed bijection and
+  affects nothing. An observer may notice that codes never exceed
+  `low + capacity − 1`; that reveals only the (public) scheme parameters,
+  never counter order or volume.
+- The immutability rule (§2) applies to `key`, `low`, `high`, and
+  `domain`.
+
+### 12.5 Test vectors
+
+`testvectors/v1r.json` (generated by the same
+`scripts/generate_test_vectors.py`) covers range-mode configs, each
+recording the expected derived `radix`, `m`, and `capacity` (a conforming
+implementation must derive the same values). For each config:
+`vectors[]` entries are `{n, code}` (both JSON strings) — implementations
+must produce `code` for every `n` and decode it back; reject every
+`invalid_codes[]` integer (`InvalidCodeError` — below `low`, above
+`high`, or in the dead zone); reject every `range_counters[]` value
+(`RangeError`); and fail construction for every top-level
+`invalid_configs[]` entry (`ConfigError`). Passing it is required for
+conformance of any implementation that ships the mode, and all seven in
+this repository do.

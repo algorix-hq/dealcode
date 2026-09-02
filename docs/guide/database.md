@@ -205,6 +205,15 @@ engine provides one, and which engine-specific behaviors to avoid.
 
     Retire or expire cycle `e`'s rows before issuing from cycle `e+1`.
 
+!!! note "Range mode: integer codes, plain uniqueness"
+
+    In the [integer range mode](configuration.md#integer-range-mode) codes
+    are integers and there are no cycles, so the default schema applies
+    unchanged — and the code column may be an integer column (that is the
+    point of the mode). Two things to carry over: the issuable count is
+    `codec.capacity`, not `high − low + 1`, so alert before the counter
+    reaches it; and the `UNIQUE` index stays a tripwire exactly as above.
+
 ## Per-database recipes
 
 What differs per engine is how you obtain a never-repeating integer — and

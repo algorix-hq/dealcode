@@ -106,6 +106,7 @@ Dealcode(key, "crockford", domain="coupons")       # e.g. 'ZV6NQ0' — human-fri
 Dealcode(key, "dec",       domain="orders")        # e.g. '839207' — digits only
 Dealcode(key, "base62",    min_length=8)           # e.g. 'tHx93bQk'
 Dealcode(key, "hex", min_length=16, max_length=16) # fixed-length tokens
+RangeDealcode(key, low=100_000, high=999_999)      # integer codes — 6 digits, never a leading zero
 Dealcode(key, "!@#$%^&*")                          # your own alphabet, why not
 ```
 
@@ -121,6 +122,12 @@ Dealcode(key, "!@#$%^&*")                          # your own alphabet, why not
   the same space through a different permutation each cycle instead of
   adding a character — codes repeat across cycles, so scope uniqueness per
   cycle.
+- **Integer codes in a chosen range?** The range mode (`RangeDealcode`,
+  SPEC §12) issues codes as *integers* from `[low, high]` — e.g.
+  `low=100_000, high=999_999` for 6-digit codes with no leading zero, safe
+  in an `INT` column. Always exactly one FF1 call (no cycle-walking, no
+  retries); capacity is the largest FF1 domain fitting the range
+  (884,736 of the 900,000 values here — 98.3%).
 - **`key`** — raw AES key bytes (16/24/32) or *any* string/bytes
   (hex from `openssl rand -hex 32`, a passphrase, a KMS blob); non-AES-sized
   material is deterministically expanded, identically in every language.

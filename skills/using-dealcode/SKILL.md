@@ -7,7 +7,8 @@ description: >-
   order numbers, coupon codes, invite codes, ticket numbers, booking/PNR
   codes, or short IDs with dealcode in Python, TypeScript/JavaScript, Go,
   Java, Rust, C, or C++ — including choosing a configuration, wiring it to a
-  database, handling decode errors, and the fixed-length cycling mode.
+  database, handling decode errors, the fixed-length cycling mode, and the
+  integer range mode.
 license: MIT
 metadata:
   source: https://github.com/algorix-hq/dealcode
@@ -57,7 +58,14 @@ Complete docs in one fetch:
    and retire cycle `e` before issuing from `e+1`. `decode(code, cycle)`
    requires the stored cycle; a wrong in-range cycle silently returns a
    different counter — only the existence lookup catches it.
-7. **Never reimplement the algorithm.** Conformance is defined by shared
+7. **Range mode capacity is `codec.capacity`, not `high − low + 1`.** The
+   integer range mode (`RangeDealcode(key, low=100_000, high=999_999)`)
+   issues codes as *integers* (int-column safe, no leading zero) via the
+   largest FF1 domain fitting the range — for 100000–999999 that is
+   884,736 of 900,000. Counters ≥ capacity are rejected; the unissued top
+   slice of the range fails decode. No cycles: plain `UNIQUE(code)`
+   tripwire semantics apply.
+8. **Never reimplement the algorithm.** Conformance is defined by shared
    test vectors; use the library in all seven languages.
 
 ## When a call is rejected
