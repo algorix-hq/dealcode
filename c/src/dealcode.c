@@ -1189,6 +1189,272 @@ const char *dealcode_cycle_alphabet(const dealcode_cycle_t *dc)
     return dc == NULL ? NULL : dc->alphabet;
 }
 
+/* ====================================================================== */
+/* Integer range mode (SPEC.md §12)                                       */
+/* ====================================================================== */
+
+#define DC_RANGE_TWEAK_PREFIX "dealcode/v1r/"
+#define DC_RANGE_MAX_M 63
+
+/* The range tweak is "dealcode/v1r/" + decimal(low) + "/" + decimal(high)
+ * + "/" + domain: 13 prefix bytes + at most 19 decimal digits (low and
+ * high are < 2^63) + 1 separator + at most 19 digits + 1 separator + at
+ * most 255 domain bytes + NUL = at most 309 bytes including the
+ * terminator (SPEC.md §12.3 bounds the tweak proper at 310 bytes). Sized
+ * 320 for headroom. Unlike the cycling tweak it is fixed at construction
+ * (low, high and domain are immutable), so it is rendered once and stored
+ * in the handle. */
+#define DC_RANGE_TWEAK_MAX 320
+
+struct dealcode_range_st {
+    dealcode_ff1_t ff1;
+    uint64_t low;
+    uint64_t high;
+    uint64_t capacity; /* radix^m; may be exactly 2^63 */
+    unsigned radix;    /* internal FF1 radix, in [2, 256] (SPEC.md §12.2) */
+    unsigned m;        /* numeral count, in [2, 63] */
+    uint8_t tweak[DC_RANGE_TWEAK_MAX];
+    size_t tweak_len;
+};
+
+/* 1 iff r^m <= n, with exact integer arithmetic. Overflow-safe: acc <= n
+ * < 2^64 before each step and r < 2^33 for every caller (r never exceeds
+ * twice the m-th root of n <= 2^63 with m >= 2), so acc * r < 2^97 stays
+ * far inside u128. */
+static int dc_range_pow_leq(uint64_t r, unsigned m, uint64_t n)
+{
+    u128 acc = 1;
+    for (unsigned i = 0; i < m; i++) {
+        acc *= r;
+        if (acc > n)
+            return 0;
+    }
+    return 1;
+}
+
+/* iroot(n, m): the largest integer r with r^m <= n (SPEC.md §12.2 —
+ * binary search with overflow-checked powers, never floating-point).
+ * Requires n >= 1 and m >= 2. */
+static uint64_t dc_range_iroot(uint64_t n, unsigned m)
+{
+    uint64_t lo = 1, hi = 2;
+    while (dc_range_pow_leq(hi, m, n))
+        hi *= 2; /* hi <= 2 * iroot(n, m) < 2^33: no overflow */
+    /* invariant: lo^m <= n < hi^m */
+    while (hi - lo > 1) {
+        const uint64_t mid = lo + (hi - lo) / 2;
+        if (dc_range_pow_leq(mid, m, n))
+            lo = mid;
+        else
+            hi = mid;
+    }
+    return lo;
+}
+
+/* Domain selection (SPEC.md §12.2, normative): the largest radix^m <= n
+ * with radix in [2, 256] and m in [2, 63]; among equal capacities the
+ * smallest m wins (strict '>'). Requires n >= 100, which guarantees a
+ * candidate (m = 2 gives r = min(isqrt(n), 256) >= 10) and
+ * capacity >= 100. */
+static void dc_range_select_domain(uint64_t n, unsigned *radix_out,
+                                   unsigned *m_out, uint64_t *capacity_out)
+{
+    uint64_t best_capacity = 0;
+    unsigned best_radix = 0, best_m = 0;
+    for (unsigned m = 2; m <= DC_RANGE_MAX_M; m++) {
+        uint64_t r = dc_range_iroot(n, m);
+        if (r > 256)
+            r = 256;
+        if (r < 2)
+            continue;
+        /* c = r^m <= iroot(n, m)^m <= n <= 2^63: fits uint64_t (computed
+         * in u128 out of caution; no step can exceed n * r < 2^97). */
+        u128 c = 1;
+        for (unsigned i = 0; i < m; i++)
+            c *= r;
+        if ((uint64_t)c > best_capacity) { /* strict '>': smallest m ties */
+            best_capacity = (uint64_t)c;
+            best_radix = (unsigned)r;
+            best_m = m;
+        }
+    }
+    *radix_out = best_radix;
+    *m_out = best_m;
+    *capacity_out = best_capacity;
+}
+
+dealcode_err_t dealcode_range_new_ex(const dealcode_range_config_t *cfg,
+                                     dealcode_range_t **out,
+                                     char *errbuf, size_t errbuf_len)
+{
+    if (errbuf != NULL && errbuf_len > 0)
+        errbuf[0] = '\0';
+    if (out == NULL) {
+        dc_errf(errbuf, errbuf_len, "out: NULL");
+        return DEALCODE_ERR_CONFIG;
+    }
+    *out = NULL;
+    if (cfg == NULL) {
+        dc_errf(errbuf, errbuf_len, "cfg: NULL");
+        return DEALCODE_ERR_CONFIG;
+    }
+
+    /* Same key rules and preset-name guard as the plain codec (§12.1). */
+    uint8_t aes_key[32];
+    size_t aes_key_len = 0;
+    dealcode_err_t err =
+        dc_resolve_key(cfg->key, cfg->key_len, cfg->key_string, aes_key,
+                       &aes_key_len, errbuf, errbuf_len);
+    if (err != DEALCODE_OK)
+        return err;
+
+    /* 0 <= low <= high <= 2^63 - 1 (SPEC.md §12.1; low >= 0 is the
+     * uint64_t type). */
+    if (cfg->high > TWO63_U64 - 1) {
+        dc_errf(errbuf, errbuf_len, "high %" PRIu64 " exceeds 2^63 - 1",
+                cfg->high);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+    if (cfg->low > cfg->high) {
+        dc_errf(errbuf, errbuf_len, "low %" PRIu64 " > high %" PRIu64,
+                cfg->low, cfg->high);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+    /* N = high - low + 1 >= 100 (FF1 structural minimum). N <= 2^63 fits
+     * uint64_t; compare via high - low to sidestep the + 1 entirely. */
+    if (cfg->high - cfg->low < 99) {
+        dc_errf(errbuf, errbuf_len,
+                "range [%" PRIu64 ", %" PRIu64 "] spans %" PRIu64
+                " values; FF1 needs at least 100",
+                cfg->low, cfg->high, cfg->high - cfg->low + 1);
+        err = DEALCODE_ERR_CONFIG;
+        goto wipe_key;
+    }
+    const uint64_t span = cfg->high - cfg->low + 1;
+
+    /* Same domain rules as the plain codec (§12.1). */
+    const char *domain = cfg->domain == NULL ? "" : cfg->domain;
+    size_t domain_len = 0;
+    err = dc_check_domain(domain, &domain_len, errbuf, errbuf_len);
+    if (err != DEALCODE_OK)
+        goto wipe_key;
+
+    dealcode_range_t *dc = calloc(1, sizeof *dc);
+    if (dc == NULL) {
+        dc_errf(errbuf, errbuf_len, "out of memory");
+        err = DEALCODE_ERR_NOMEM;
+        goto wipe_key;
+    }
+
+    dc_range_select_domain(span, &dc->radix, &dc->m, &dc->capacity);
+
+    err = dealcode_ff1_init(&dc->ff1, aes_key, aes_key_len, dc->radix);
+    if (err != DEALCODE_OK) {
+        dc_errf(errbuf, errbuf_len, "internal: FF1 initialization failed");
+        OPENSSL_cleanse(dc, sizeof *dc);
+        free(dc);
+        goto wipe_key;
+    }
+
+    dc->low = cfg->low;
+    dc->high = cfg->high;
+    /* Never longer than DC_RANGE_TWEAK_MAX - 1; see the arithmetic above. */
+    dc->tweak_len = (size_t)snprintf(
+        (char *)dc->tweak, DC_RANGE_TWEAK_MAX,
+        DC_RANGE_TWEAK_PREFIX "%" PRIu64 "/%" PRIu64 "/%s", cfg->low,
+        cfg->high, domain);
+
+    OPENSSL_cleanse(aes_key, sizeof aes_key);
+    *out = dc;
+    return DEALCODE_OK;
+
+wipe_key:
+    OPENSSL_cleanse(aes_key, sizeof aes_key);
+    return err;
+}
+
+dealcode_err_t dealcode_range_new(const dealcode_range_config_t *cfg,
+                                  dealcode_range_t **out)
+{
+    return dealcode_range_new_ex(cfg, out, NULL, 0);
+}
+
+void dealcode_range_free(dealcode_range_t *dc)
+{
+    if (dc == NULL)
+        return;
+    OPENSSL_cleanse(dc, sizeof *dc); /* wipe key material */
+    free(dc);
+}
+
+dealcode_err_t dealcode_range_encode(const dealcode_range_t *dc, uint64_t n,
+                                     uint64_t *code_out)
+{
+    if (dc == NULL || code_out == NULL)
+        return DEALCODE_ERR_CONFIG;
+    if (n >= dc->capacity)
+        return DEALCODE_ERR_RANGE;
+
+    uint8_t plain[DC_RANGE_MAX_M] = { 0 }, cipher[DC_RANGE_MAX_M] = { 0 };
+    ff1_str((u128)n, dc->radix, (size_t)dc->m, plain);
+    const dealcode_err_t err =
+        dealcode_ff1_encrypt(&dc->ff1, dc->tweak, dc->tweak_len, plain,
+                             (size_t)dc->m, cipher);
+    if (err != DEALCODE_OK)
+        return err;
+    /* v < radix^m = capacity <= 2^63 and low + capacity - 1 <= high
+     * <= 2^63 - 1, so low + v never overflows uint64_t. */
+    const u128 v = ff1_num(cipher, (size_t)dc->m, dc->radix);
+    *code_out = dc->low + (uint64_t)v;
+    return DEALCODE_OK;
+}
+
+dealcode_err_t dealcode_range_decode(const dealcode_range_t *dc,
+                                     uint64_t code, uint64_t *n_out)
+{
+    if (dc == NULL || n_out == NULL)
+        return DEALCODE_ERR_CONFIG;
+    if (code < dc->low || code > dc->high)
+        return DEALCODE_ERR_INVALID_CODE;
+    const uint64_t v = code - dc->low;
+    if (v >= dc->capacity)
+        return DEALCODE_ERR_INVALID_CODE; /* dead zone: never issued */
+
+    uint8_t cipher[DC_RANGE_MAX_M] = { 0 }, plain[DC_RANGE_MAX_M] = { 0 };
+    ff1_str((u128)v, dc->radix, (size_t)dc->m, cipher);
+    const dealcode_err_t err =
+        dealcode_ff1_decrypt(&dc->ff1, dc->tweak, dc->tweak_len, cipher,
+                             (size_t)dc->m, plain);
+    if (err != DEALCODE_OK)
+        return err;
+    /* FF1 permutes [0, radix^m), so n < capacity always holds — no
+     * further range check is needed (SPEC.md §12.3). */
+    *n_out = (uint64_t)ff1_num(plain, (size_t)dc->m, dc->radix);
+    return DEALCODE_OK;
+}
+
+uint64_t dealcode_range_capacity(const dealcode_range_t *dc)
+{
+    return dc == NULL ? 0 : dc->capacity;
+}
+
+uint64_t dealcode_range_low(const dealcode_range_t *dc)
+{
+    return dc == NULL ? 0 : dc->low;
+}
+
+uint64_t dealcode_range_high(const dealcode_range_t *dc)
+{
+    return dc == NULL ? 0 : dc->high;
+}
+
+int dealcode_range_radix(const dealcode_range_t *dc)
+{
+    return dc == NULL ? 0 : (int)dc->radix;
+}
+
 const char *dealcode_strerror(dealcode_err_t err)
 {
     switch (err) {

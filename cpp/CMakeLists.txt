@@ -90,6 +90,7 @@ if(DEALCODE_BUILD_TESTS)
                 ${CMAKE_CURRENT_SOURCE_DIR}/../testvectors/ff1_nist.json
                 ${CMAKE_CURRENT_SOURCE_DIR}/../testvectors/v1.json
                 ${CMAKE_CURRENT_SOURCE_DIR}/../testvectors/v1c.json
+                ${CMAKE_CURRENT_SOURCE_DIR}/../testvectors/v1r.json
         COMMENT "Generating test vectors")
     add_custom_target(dealcode_vectors DEPENDS ${VECTORS_INC})
 

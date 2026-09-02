@@ -9,6 +9,8 @@
  *    radix^max_length is exactly 2^128
  *  - fixed-length cycling mode (SPEC section 11): every case in
  *    testvectors/v1c.json plus permutation/boundary/namespace behaviour
+ *  - integer range mode (SPEC section 12): every case in
+ *    testvectors/v1r.json plus bijection/dead-zone/binding behaviour
  */
 
 #include <inttypes.h>
@@ -1571,6 +1573,466 @@ static void test_utf8_validation(void)
 }
 
 /* ---------------------------------------------------------------------- */
+/* Integer range mode (SPEC section 12)                                   */
+/* ---------------------------------------------------------------------- */
+
+static dealcode_range_t *make_range_codec(const tv_range_config_t *cfg,
+                                          dealcode_err_t *err_out)
+{
+    uint8_t key[64];
+    dealcode_range_config_t c = { 0 };
+    if (cfg->key_hex != NULL) {
+        const size_t key_len = hex_decode(cfg->key_hex, key, sizeof key);
+        if (key_len == (size_t)-1) {
+            *err_out = DEALCODE_ERR_CONFIG;
+            return NULL;
+        }
+        c.key = key;
+        c.key_len = key_len;
+    } else {
+        c.key_string = cfg->key_string;
+    }
+    c.low = cfg->low;
+    c.high = cfg->high;
+    c.domain = cfg->domain;
+
+    dealcode_range_t *dc = NULL;
+    *err_out = dealcode_range_new(&c, &dc);
+    return dc;
+}
+
+static void test_v1r_vectors(void)
+{
+    for (size_t i = 0; i < TV_V1R_COUNT; i++) {
+        const tv_range_config_t *cfg = &TV_V1R[i];
+        dealcode_err_t err;
+        dealcode_range_t *dc = make_range_codec(cfg, &err);
+        CHECK(dc != NULL, "v1r %s: dealcode_range_new: %s", cfg->name,
+              dealcode_strerror(err));
+        if (dc == NULL)
+            continue;
+
+        /* derived domain (SPEC section 12.2): radix, m, capacity must all
+         * match the vector file (capacity == radix^m pins m). */
+        CHECK(dealcode_range_radix(dc) == (int)cfg->radix,
+              "v1r %s: radix %d, want %u", cfg->name,
+              dealcode_range_radix(dc), cfg->radix);
+        CHECK(dealcode_range_capacity(dc) == cfg->capacity,
+              "v1r %s: capacity %" PRIu64 ", want %" PRIu64, cfg->name,
+              dealcode_range_capacity(dc), cfg->capacity);
+        {
+            uint64_t power = 1;
+            int overflow = 0;
+            for (int j = 0; j < cfg->m; j++) {
+                if (power > UINT64_MAX / cfg->radix) {
+                    overflow = 1;
+                    break;
+                }
+                power *= cfg->radix;
+            }
+            CHECK(!overflow && power == cfg->capacity,
+                  "v1r %s: capacity must equal radix^m", cfg->name);
+        }
+        CHECK(dealcode_range_low(dc) == cfg->low &&
+                  dealcode_range_high(dc) == cfg->high,
+              "v1r %s: low/high accessors", cfg->name);
+
+        for (size_t j = 0; j < cfg->n_vectors; j++) {
+            const tv_range_pair_t *tv = &cfg->vectors[j];
+            uint64_t code = UINT64_MAX;
+            err = dealcode_range_encode(dc, tv->n, &code);
+            CHECK(err == DEALCODE_OK && code == tv->code,
+                  "v1r %s: encode(%" PRIu64 ") = %" PRIu64
+                  " (%s), want %" PRIu64,
+                  cfg->name, tv->n, code, dealcode_strerror(err), tv->code);
+
+            uint64_t n = UINT64_MAX;
+            err = dealcode_range_decode(dc, tv->code, &n);
+            CHECK(err == DEALCODE_OK && n == tv->n,
+                  "v1r %s: decode(%" PRIu64 ") = %" PRIu64
+                  " (%s), want %" PRIu64,
+                  cfg->name, tv->code, n, dealcode_strerror(err), tv->n);
+        }
+
+        for (size_t j = 0; j < cfg->n_invalid_codes; j++) {
+            uint64_t n = 0;
+            err = dealcode_range_decode(dc, cfg->invalid_codes[j], &n);
+            CHECK(err == DEALCODE_ERR_INVALID_CODE,
+                  "v1r %s: decode(%" PRIu64 ") = %s, want invalid-code",
+                  cfg->name, cfg->invalid_codes[j], dealcode_strerror(err));
+        }
+
+        for (size_t j = 0; j < cfg->n_range_counters; j++) {
+            uint64_t code = 0;
+            err = dealcode_range_encode(dc, cfg->range_counters[j], &code);
+            CHECK(err == DEALCODE_ERR_RANGE,
+                  "v1r %s: encode(%" PRIu64 ") = %s, want range error",
+                  cfg->name, cfg->range_counters[j], dealcode_strerror(err));
+        }
+
+        dealcode_range_free(dc);
+    }
+}
+
+static void test_v1r_invalid_configs(void)
+{
+    for (size_t i = 0; i < TV_V1R_INVALID_CONFIG_COUNT; i++) {
+        const tv_range_invalid_config_t *tv = &TV_V1R_INVALID_CONFIGS[i];
+        uint8_t key[64];
+        dealcode_range_config_t c = { 0 };
+        if (tv->key_hex != NULL) {
+            const size_t key_len = hex_decode(tv->key_hex, key, sizeof key);
+            CHECK(key_len != (size_t)-1, "v1r invalid-config %s: bad key hex",
+                  tv->name);
+            if (key_len == (size_t)-1)
+                continue;
+            c.key = key;
+            c.key_len = key_len;
+        } else {
+            c.key_string = tv->key_string;
+        }
+        c.low = tv->low;
+        c.high = tv->high;
+        c.domain = tv->domain;
+
+        dealcode_range_t *dc = NULL;
+        dealcode_err_t err = dealcode_range_new(&c, &dc);
+        CHECK(err == DEALCODE_ERR_CONFIG && dc == NULL,
+              "v1r invalid-config %s: got %s, want config error", tv->name,
+              dealcode_strerror(err));
+
+        /* the _ex form must agree, and must explain itself */
+        char errbuf[DEALCODE_ERRBUF_SIZE];
+        err = dealcode_range_new_ex(&c, &dc, errbuf, sizeof errbuf);
+        CHECK(err == DEALCODE_ERR_CONFIG && dc == NULL,
+              "v1r invalid-config %s: _ex got %s, want config error",
+              tv->name, dealcode_strerror(err));
+        CHECK(errbuf[0] != '\0',
+              "v1r invalid-config %s: _ex must write a diagnostic", tv->name);
+        dealcode_range_free(dc);
+    }
+}
+
+/* The range constructor reuses the plain codec's key and domain guards
+ * verbatim, plus its own bound constraints; check the exact diagnostics. */
+static void test_range_config_errors(void)
+{
+    dealcode_range_config_t c;
+    dealcode_range_t *dc = NULL;
+    char errbuf[DEALCODE_ERRBUF_SIZE];
+
+    /* success: OK, handle set, errbuf cleared to "" */
+    memset(&c, 0, sizeof c);
+    c.key_string = "range-detail-key";
+    c.low = 100000;
+    c.high = 999999;
+    memset(errbuf, 'x', sizeof errbuf);
+    CHECK(dealcode_range_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_OK &&
+              dc != NULL,
+          "range new_ex: success");
+    CHECK(errbuf[0] == '\0', "range new_ex: errbuf empty on success");
+    dealcode_range_free(dc);
+    dc = NULL;
+
+    /* guard B: preset-name string key, same message as plain */
+    memset(&c, 0, sizeof c);
+    c.key_string = "crockford";
+    c.low = 100000;
+    c.high = 999999;
+    CHECK(dealcode_range_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              dc == NULL,
+          "range guard B: string key \"crockford\" rejected");
+    CHECK(strcmp(errbuf,
+                 "string key \"crockford\" is a preset alphabet name — did "
+                 "you swap the key and alphabet fields?") == 0,
+          "range guard B: diagnostic, got \"%s\"", errbuf);
+
+    /* byte keys spelling a preset name are unaffected (as in plain) */
+    memset(&c, 0, sizeof c);
+    c.key = (const uint8_t *)"crockford";
+    c.key_len = 9;
+    c.low = 100000;
+    c.high = 999999;
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_OK,
+          "range guard B: byte key \"crockford\" accepted");
+    dealcode_range_free(dc);
+    dc = NULL;
+
+    /* empty key, as in plain */
+    memset(&c, 0, sizeof c);
+    c.key_string = "";
+    c.low = 100000;
+    c.high = 999999;
+    CHECK(dealcode_range_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "key: empty") == 0,
+          "range: empty key message, got \"%s\"", errbuf);
+
+    /* bound constraints (SPEC section 12.1) */
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.low = 0;
+    c.high = UINT64_C(1) << 63; /* one past 2^63 - 1 */
+    CHECK(dealcode_range_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf,
+                     "high 9223372036854775808 exceeds 2^63 - 1") == 0,
+          "range: high bound message, got \"%s\"", errbuf);
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.low = 0;
+    c.high = UINT64_MAX;
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "range: high UINT64_MAX rejected");
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.low = 10;
+    c.high = 9;
+    CHECK(dealcode_range_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf, "low 10 > high 9") == 0,
+          "range: low > high message, got \"%s\"", errbuf);
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.low = 0;
+    c.high = 98; /* span 99 < 100 */
+    CHECK(dealcode_range_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                  DEALCODE_ERR_CONFIG &&
+              strcmp(errbuf,
+                     "range [0, 98] spans 99 values; FF1 needs at "
+                     "least 100") == 0,
+          "range: span message, got \"%s\"", errbuf);
+
+    /* oversized and invalid-UTF-8 domains: same rules as plain */
+    {
+        static char domain[300];
+        memset(domain, 'a', 256);
+        domain[256] = '\0';
+        memset(&c, 0, sizeof c);
+        c.key_string = "k";
+        c.low = 100000;
+        c.high = 999999;
+        c.domain = domain;
+        CHECK(dealcode_range_new_ex(&c, &dc, errbuf, sizeof errbuf) ==
+                      DEALCODE_ERR_CONFIG &&
+                  strcmp(errbuf,
+                         "domain exceeds 255 UTF-8 bytes (got 256)") == 0,
+              "range: domain message, got \"%s\"", errbuf);
+    }
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.low = 100000;
+    c.high = 999999;
+    c.domain = "\xff\xfe";
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "range: invalid UTF-8 domain rejected");
+    memset(&c, 0, sizeof c);
+    c.key_string = "\xc0\xaf";
+    c.low = 100000;
+    c.high = 999999;
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_ERR_CONFIG,
+          "range: invalid UTF-8 key string rejected");
+
+    /* boundaries that must SUCCEED */
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.low = 0;
+    c.high = 99; /* span exactly 100 */
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_OK,
+          "range: span == 100 must be accepted");
+    if (dc != NULL)
+        CHECK(dealcode_range_capacity(dc) == 100 &&
+                  dealcode_range_radix(dc) == 10,
+              "range: span 100 -> 10^2");
+    dealcode_range_free(dc);
+    dc = NULL;
+
+    memset(&c, 0, sizeof c);
+    c.key_string = "k";
+    c.low = 0;
+    c.high = (UINT64_C(1) << 63) - 1; /* full counter space, N = 2^63 */
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_OK,
+          "range: high == 2^63 - 1 must be accepted");
+    if (dc != NULL)
+        CHECK(dealcode_range_capacity(dc) == (UINT64_C(1) << 63) &&
+                  dealcode_range_radix(dc) == 128,
+              "range: N == 2^63 -> 128^9, capacity 2^63");
+    dealcode_range_free(dc);
+    dc = NULL;
+
+    /* NULL argument handling */
+    {
+        dealcode_range_t *out = NULL;
+        CHECK(dealcode_range_new(NULL, &out) == DEALCODE_ERR_CONFIG,
+              "range: NULL cfg");
+        memset(&c, 0, sizeof c);
+        c.key_string = "k";
+        c.low = 100000;
+        c.high = 999999;
+        CHECK(dealcode_range_new(&c, NULL) == DEALCODE_ERR_CONFIG,
+              "range: NULL out");
+    }
+}
+
+/* SPEC section 12.3/12.4 behaviour: with N itself an admissible power the
+ * whole range is covered — encode is a bijection [0, N) <-> [low, high]. */
+static void test_range_bijection(void)
+{
+    dealcode_range_config_t c = { 0 };
+    c.key_string = "range-behaviour-key";
+    c.low = 1000;
+    c.high = 1120; /* N = 121 = 11^2: no dead zone */
+    dealcode_range_t *dc = NULL;
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_OK, "bijection: new");
+    if (dc == NULL)
+        return;
+    CHECK(dealcode_range_capacity(dc) == 121 &&
+              dealcode_range_radix(dc) == 11,
+          "bijection: capacity 121 = 11^2");
+
+    int seen[121] = { 0 };
+    for (uint64_t n = 0; n < 121; n++) {
+        uint64_t code = 0;
+        CHECK(dealcode_range_encode(dc, n, &code) == DEALCODE_OK,
+              "bijection: encode(%" PRIu64 ")", n);
+        CHECK(code >= 1000 && code <= 1120,
+              "bijection: code %" PRIu64 " in [1000, 1120]", code);
+        const int slot = (int)(code - 1000);
+        CHECK(!seen[slot], "bijection: codes must be distinct");
+        seen[slot] = 1;
+
+        uint64_t back = UINT64_MAX;
+        CHECK(dealcode_range_decode(dc, code, &back) == DEALCODE_OK &&
+                  back == n,
+              "bijection: decode(%" PRIu64 ")", code);
+    }
+    int covered = 1;
+    for (int s = 0; s < 121; s++)
+        covered = covered && seen[s];
+    CHECK(covered, "bijection: the 121 codes cover the whole range");
+    dealcode_range_free(dc);
+}
+
+/* The dead zone [low + capacity, high] is never issued and is rejected by
+ * decode; the issued top (low + capacity - 1) still roundtrips. */
+static void test_range_dead_zone(void)
+{
+    dealcode_range_config_t c = { 0 };
+    c.key_string = "range-behaviour-key";
+    c.low = 100000;
+    c.high = 999999; /* N = 900000 -> 96^3 = 884736 */
+    dealcode_range_t *dc = NULL;
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_OK, "dead-zone: new");
+    if (dc == NULL)
+        return;
+    const uint64_t capacity = dealcode_range_capacity(dc);
+    CHECK(capacity == 884736, "dead-zone: capacity 96^3");
+    const uint64_t top_issued = 100000 + capacity - 1; /* 984735 */
+
+    uint64_t code = 0, back = UINT64_MAX;
+    CHECK(dealcode_range_encode(dc, capacity - 1, &code) == DEALCODE_OK &&
+              code >= 100000 && code <= top_issued &&
+              dealcode_range_decode(dc, code, &back) == DEALCODE_OK &&
+              back == capacity - 1,
+          "dead-zone: last counter roundtrips inside the issued slice");
+
+    static const uint64_t dead[] = { UINT64_C(984736), UINT64_C(990000),
+                                     UINT64_C(999999) };
+    for (size_t i = 0; i < sizeof dead / sizeof dead[0]; i++) {
+        uint64_t n = 0;
+        CHECK(dealcode_range_decode(dc, dead[i], &n) ==
+                  DEALCODE_ERR_INVALID_CODE,
+              "dead-zone: decode(%" PRIu64 ") must be invalid", dead[i]);
+    }
+    /* below low / above high are invalid too */
+    uint64_t n = 0;
+    CHECK(dealcode_range_decode(dc, 99999, &n) == DEALCODE_ERR_INVALID_CODE,
+          "dead-zone: below low rejected");
+    CHECK(dealcode_range_decode(dc, 1000000, &n) ==
+              DEALCODE_ERR_INVALID_CODE,
+          "dead-zone: above high rejected");
+    /* range errors on encode */
+    CHECK(dealcode_range_encode(dc, capacity, &code) == DEALCODE_ERR_RANGE,
+          "dead-zone: encode(capacity) rejected");
+    CHECK(dealcode_range_encode(dc, UINT64_MAX, &code) ==
+              DEALCODE_ERR_RANGE,
+          "dead-zone: encode(UINT64_MAX) rejected");
+    dealcode_range_free(dc);
+}
+
+/* low, high and domain are all bound into the tweak (SPEC section 12.3):
+ * changing any one of them must change the permutation. */
+static void test_range_binding(void)
+{
+    dealcode_range_config_t c = { 0 };
+    c.key_string = "range-binding-key";
+    c.low = 100000;
+    c.high = 999999;
+    dealcode_range_t *a = NULL, *b = NULL, *d = NULL;
+    CHECK(dealcode_range_new(&c, &a) == DEALCODE_OK, "binding: new a");
+    c.high = 999998; /* same derived domain (96^3), different tweak */
+    CHECK(dealcode_range_new(&c, &b) == DEALCODE_OK, "binding: new b");
+    c.high = 999999;
+    c.domain = "x";
+    CHECK(dealcode_range_new(&c, &d) == DEALCODE_OK, "binding: new d");
+
+    if (a != NULL && b != NULL && d != NULL) {
+        CHECK(dealcode_range_capacity(b) == dealcode_range_capacity(a),
+              "binding: same capacity for the comparison to be fair");
+        int ab_equal = 1, ad_equal = 1, bd_equal = 1;
+        for (uint64_t n = 0; n < 32; n++) {
+            uint64_t ca = 0, cb = 0, cd = 0;
+            CHECK(dealcode_range_encode(a, n, &ca) == DEALCODE_OK &&
+                      dealcode_range_encode(b, n, &cb) == DEALCODE_OK &&
+                      dealcode_range_encode(d, n, &cd) == DEALCODE_OK,
+                  "binding: encode");
+            ab_equal = ab_equal && ca == cb;
+            ad_equal = ad_equal && ca == cd;
+            bd_equal = bd_equal && cb == cd;
+        }
+        CHECK(!ab_equal && !ad_equal && !bd_equal,
+              "binding: low/high/domain must all bind the permutation");
+    }
+    dealcode_range_free(a);
+    dealcode_range_free(b);
+    dealcode_range_free(d);
+}
+
+static void test_range_null_handles(void)
+{
+    uint64_t code = 0, n = 0;
+    CHECK(dealcode_range_capacity(NULL) == 0, "range null: capacity");
+    CHECK(dealcode_range_low(NULL) == 0, "range null: low");
+    CHECK(dealcode_range_high(NULL) == 0, "range null: high");
+    CHECK(dealcode_range_radix(NULL) == 0, "range null: radix");
+    CHECK(dealcode_range_encode(NULL, 0, &code) == DEALCODE_ERR_CONFIG,
+          "range null: encode");
+    CHECK(dealcode_range_decode(NULL, 100000, &n) == DEALCODE_ERR_CONFIG,
+          "range null: decode");
+    dealcode_range_free(NULL); /* must be a no-op */
+
+    dealcode_range_config_t c = { 0 };
+    c.key_string = "k";
+    c.low = 100000;
+    c.high = 999999;
+    dealcode_range_t *dc = NULL;
+    CHECK(dealcode_range_new(&c, &dc) == DEALCODE_OK, "range null: new");
+    if (dc != NULL) {
+        CHECK(dealcode_range_encode(dc, 0, NULL) == DEALCODE_ERR_CONFIG,
+              "range null: encode NULL code_out");
+        CHECK(dealcode_range_decode(dc, 100000, NULL) ==
+                  DEALCODE_ERR_CONFIG,
+              "range null: decode NULL n_out");
+    }
+    dealcode_range_free(dc);
+}
+
+/* ---------------------------------------------------------------------- */
 
 int main(void)
 {
@@ -1598,6 +2060,13 @@ int main(void)
     test_cycle_namespace_separation();
     test_cycle_max_tweak();
     test_cycle_null_and_buffer();
+    test_v1r_vectors();
+    test_v1r_invalid_configs();
+    test_range_config_errors();
+    test_range_bijection();
+    test_range_dead_zone();
+    test_range_binding();
+    test_range_null_handles();
 
     printf("%d checks, %d failures\n", g_checks, g_failures);
     if (g_failures != 0) {

@@ -73,8 +73,10 @@ use sha2::{Digest, Sha256};
 pub mod alphabets;
 mod cycle;
 mod ff1;
+mod range;
 
 pub use cycle::{CyclingBuilder, CyclingDealcode};
+pub use range::{RangeBuilder, RangeDealcode};
 
 use alphabets::ResolvedAlphabet;
 use ff1::AesCipher;
@@ -105,7 +107,9 @@ pub enum Error {
     /// `[0, capacity)` — or, in cycling mode, [`CyclingDealcode::encode`]
     /// with a counter at or beyond `2^63`, or
     /// [`CyclingDealcode::decode`] with a cycle beyond
-    /// [`max_cycle`](CyclingDealcode::max_cycle).
+    /// [`max_cycle`](CyclingDealcode::max_cycle) — or, in range mode,
+    /// [`RangeDealcode::encode`] with a counter at or beyond
+    /// [`capacity`](RangeDealcode::capacity).
     Range {
         /// The out-of-range counter (or cycle number).
         n: u64,
@@ -113,7 +117,9 @@ pub enum Error {
         capacity: u64,
     },
     /// [`Dealcode::decode`] input failed length, charset, or stage-range
-    /// validation — this codec never issued it.
+    /// validation — or [`RangeDealcode::decode`] was given an integer
+    /// outside `[low, high]` or in the unissued dead zone. Either way, this
+    /// codec never issued it.
     InvalidCode(String),
 }
 
@@ -683,6 +689,8 @@ const _: () = {
     assert_send_sync::<Dealcode>();
     assert_send_sync::<CyclingDealcode>();
     assert_send_sync::<CyclingBuilder>();
+    assert_send_sync::<RangeDealcode>();
+    assert_send_sync::<RangeBuilder>();
     assert_send_sync::<Key>();
     assert_send_sync::<Builder>();
     assert_send_sync::<Error>();

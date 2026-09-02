@@ -18,7 +18,9 @@
  * @endcode
  *
  * Fixed-length cycling mode (SPEC.md §11) is wrapped by
- * dealcode::CycleCodec / dealcode::CycleOptions with the same semantics.
+ * dealcode::CycleCodec / dealcode::CycleOptions, and integer range mode
+ * (SPEC.md §12) by dealcode::RangeCodec / dealcode::RangeOptions, with the
+ * same semantics.
  *
  * Semantics:
  *  - Codec is move-only (it owns the underlying C handle via unique_ptr).
@@ -441,6 +443,158 @@ private:
     }
 
     std::unique_ptr<dealcode_cycle_t, detail::CycleDeleter> handle_;
+};
+
+/** Range-codec configuration (SPEC.md §12.1); key material is passed
+ * separately. `low` and `high` are required (the {0, 0} defaults fail
+ * construction: the range must span at least 100 values). */
+struct RangeOptions {
+    /** Smallest code value (inclusive). */
+    std::uint64_t low = 0;
+    /** Largest range value (inclusive); must be <= 2^63 - 1. Codes above
+     * low + capacity - 1 (the *dead zone*) are never issued. */
+    std::uint64_t high = 0;
+    /** Namespace label bound into the FF1 tweak
+     * ("dealcode/v1r/" + low + "/" + high + "/" + domain); at most 255
+     * UTF-8 bytes. */
+    std::string domain;
+};
+
+namespace detail {
+
+struct RangeDeleter {
+    void operator()(dealcode_range_t *dc) const noexcept
+    {
+        dealcode_range_free(dc);
+    }
+};
+
+} // namespace detail
+
+/**
+ * Integer range codec (SPEC.md §12). Thin RAII wrapper over
+ * dealcode_range_t, with the same move-only/exception/thread-safety
+ * semantics as Codec.
+ *
+ * Codes are **integers** drawn without repetition from [low, high] — built
+ * for ranges like [100000, 999999]: every code is a 6-digit number with no
+ * leading zero, safe to store in an integer column. Counters
+ * 0 <= n < capacity() map bijectively to codes in
+ * [low, low + capacity() - 1] through a single FF1 call. capacity() is the
+ * largest FF1 domain (radix^m with radix <= 256) that fits in the range,
+ * so it can be slightly smaller than high - low + 1; the uncovered top
+ * slice is never issued and is rejected by decode().
+ */
+class RangeCodec {
+public:
+    /** Construct with string key material (SPEC.md §2.1 string rule). */
+    explicit RangeCodec(std::string_view key, RangeOptions opts)
+    {
+        detail::reject_embedded_nul(key, "string key material");
+        const std::string key_copy(key); /* ensure NUL termination */
+        dealcode_range_config_t cfg{};
+        cfg.key_string = key_copy.c_str();
+        init(cfg, opts);
+    }
+
+    /** Construct with byte key material (SPEC.md §2.1 bytes rule). */
+    RangeCodec(const std::uint8_t *key, std::size_t key_len,
+               RangeOptions opts)
+    {
+        dealcode_range_config_t cfg{};
+        cfg.key = key;
+        cfg.key_len = key_len;
+        init(cfg, opts);
+    }
+
+    /** Convenience overload of the bytes rule. */
+    RangeCodec(const std::vector<std::uint8_t> &key, RangeOptions opts)
+        : RangeCodec(key.data(), key.size(), std::move(opts))
+    {
+    }
+
+    RangeCodec(RangeCodec &&) noexcept = default;
+    RangeCodec &operator=(RangeCodec &&) noexcept = default;
+    RangeCodec(const RangeCodec &) = delete;
+    RangeCodec &operator=(const RangeCodec &) = delete;
+
+    /** Map counter `n` to its integer code in
+     * [low(), low() + capacity() - 1]. Throws RangeError if
+     * n >= capacity() (this mode has no staging and no cycles; when the
+     * range is exhausted, it is exhausted). */
+    std::uint64_t encode(std::uint64_t n) const
+    {
+        std::uint64_t code = 0;
+        const dealcode_err_t err =
+            dealcode_range_encode(handle_.get(), n, &code);
+        if (err != DEALCODE_OK)
+            detail::throw_error(err, "encode(" + std::to_string(n) + ")");
+        return code;
+    }
+
+    /** Map an integer code back to its counter. Throws InvalidCodeError if
+     * the code is outside [low(), high()] or in the dead zone
+     * [low() + capacity(), high()] — i.e. was never issued by this
+     * codec. */
+    std::uint64_t decode(std::uint64_t code) const
+    {
+        std::uint64_t n = 0;
+        const dealcode_err_t err =
+            dealcode_range_decode(handle_.get(), code, &n);
+        if (err != DEALCODE_OK)
+            detail::throw_error(err, "decode(" + std::to_string(code) + ")");
+        return n;
+    }
+
+    /** Number of issuable codes: the largest admissible radix^m
+     * <= high - low + 1 (may be exactly 2^63). The effective capacity is
+     * this value, not high - low + 1 — monitor counter consumption against
+     * it (SPEC.md §12.4). */
+    std::uint64_t capacity() const noexcept
+    {
+        return dealcode_range_capacity(handle_.get());
+    }
+
+    /** Configured `low` bound. */
+    std::uint64_t low() const noexcept
+    {
+        return dealcode_range_low(handle_.get());
+    }
+
+    /** Configured `high` bound. */
+    std::uint64_t high() const noexcept
+    {
+        return dealcode_range_high(handle_.get());
+    }
+
+    /** Internal FF1 radix selected per SPEC.md §12.2; informational. */
+    int radix() const noexcept
+    {
+        return dealcode_range_radix(handle_.get());
+    }
+
+private:
+    void init(dealcode_range_config_t &cfg, const RangeOptions &opts)
+    {
+        detail::reject_embedded_nul(opts.domain, "domain");
+        cfg.low = opts.low;
+        cfg.high = opts.high;
+        cfg.domain = opts.domain.c_str();
+
+        dealcode_range_t *dc = nullptr;
+        char errbuf[DEALCODE_ERRBUF_SIZE];
+        const dealcode_err_t err =
+            dealcode_range_new_ex(&cfg, &dc, errbuf, sizeof errbuf);
+        if (err != DEALCODE_OK) {
+            /* Prefer the C core's field-level diagnostic. */
+            const std::string detail =
+                errbuf[0] != '\0' ? errbuf : dealcode_strerror(err);
+            detail::throw_error_what(err, "RangeCodec(): " + detail);
+        }
+        handle_.reset(dc);
+    }
+
+    std::unique_ptr<dealcode_range_t, detail::RangeDeleter> handle_;
 };
 
 } // namespace dealcode

@@ -104,6 +104,7 @@ Dealcode(key, "crockford", domain="coupons")       # 예: 'ZV6NQ0' — 사람 �
 Dealcode(key, "dec",       domain="orders")        # 예: '839207' — 숫자만
 Dealcode(key, "base62",    min_length=8)           # 예: 'tHx93bQk'
 Dealcode(key, "hex", min_length=16, max_length=16) # 고정 길이 토큰
+RangeDealcode(key, low=100_000, high=999_999)      # 정수 코드 — 6자리, 선행 0 절대 없음
 Dealcode(key, "!@#$%^&*")                          # 커스텀 알파벳도 그대로 동작
 ```
 
@@ -119,6 +120,12 @@ Dealcode(key, "!@#$%^&*")                          # 커스텀 알파벳도 그�
   글자를 늘리는 대신 매 사이클 다른 순열로 같은 공간을 다시 채웁니다.
   사이클을 넘으면 코드가 반복되므로 유일성은 사이클 단위로 관리해야
   합니다.
+- **직접 고른 범위 안의 정수 코드가 필요하면?** 범위 모드(`RangeDealcode`,
+  SPEC §12)는 `[low, high]`에서 *정수* 코드를 발급합니다 — 예를 들어
+  `low=100_000, high=999_999`면 선행 0이 없는 6자리 코드라 `INT` 컬럼에도
+  안전합니다. 언제나 정확히 FF1 1회 호출(cycle-walking도 재시도도 없음),
+  용량은 범위에 들어가는 최대 FF1 도메인입니다(이 범위에선 900,000개 중
+  884,736개 — 98.3%).
 - **`key`** — AES 원시 키(16/24/32바이트) 또는 **아무 문자열/바이트나**
   (`openssl rand -hex 32` 출력, 패스프레이즈, KMS blob). AES 크기가 아닌
   재료는 모든 언어에서 동일한 방식으로 결정적으로 확장됩니다.

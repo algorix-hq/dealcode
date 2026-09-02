@@ -3,9 +3,9 @@
 
 Usage: gen_vectors.py <output.inc>
 
-Reads ../../testvectors/{ff1_nist.json,v1.json,v1c.json} relative to this
-script and emits a self-contained C include file with plain positional
-aggregate initializers (valid in both C11 and C++17).
+Reads ../../testvectors/{ff1_nist.json,v1.json,v1c.json,v1r.json} relative
+to this script and emits a self-contained C include file with plain
+positional aggregate initializers (valid in both C11 and C++17).
 """
 
 import json
@@ -50,6 +50,7 @@ def main():
     nist = json.loads((VECTORS_DIR / "ff1_nist.json").read_text())
     v1 = json.loads((VECTORS_DIR / "v1.json").read_text())
     v1c = json.loads((VECTORS_DIR / "v1c.json").read_text())
+    v1r = json.loads((VECTORS_DIR / "v1r.json").read_text())
 
     lines = []
     w = lines.append
@@ -423,10 +424,171 @@ def main():
     w("    (sizeof TV_V1C_INVALID_CONFIGS / sizeof TV_V1C_INVALID_CONFIGS[0])")
     w("")
 
+    # ---- integer range mode (SPEC §12, testvectors/v1r.json) ------------
+    w("/* Integer range mode (SPEC section 12). All decimal-string fields")
+    w(" * of v1r.json (low, high, capacity, n, code) fit uint64_t by")
+    w(" * construction (low <= high < 2^63, capacity <= 2^63); values that")
+    w(" * do not (e.g. \"-1\", 2^64) are skipped below with a comment. */")
+    w("")
+    w("typedef struct {")
+    w("    uint64_t n;")
+    w("    uint64_t code;")
+    w("} tv_range_pair_t;")
+    w("")
+    w("typedef struct {")
+    w("    const char *name;")
+    w("    const char *key_hex;         /* bytes rule, or NULL */")
+    w("    const char *key_string;      /* string rule, or NULL */")
+    w("    uint64_t low;")
+    w("    uint64_t high;")
+    w("    const char *domain;")
+    w("    unsigned radix;              /* expected derived radix */")
+    w("    int m;                       /* expected derived numeral count */")
+    w("    uint64_t capacity;           /* expected radix^m (may be 2^63) */")
+    w("    const tv_range_pair_t *vectors;")
+    w("    size_t n_vectors;")
+    w("    const uint64_t *invalid_codes;   /* decode: ERR_INVALID_CODE */")
+    w("    size_t n_invalid_codes;")
+    w("    const uint64_t *range_counters;  /* encode must ERR_RANGE these */")
+    w("    size_t n_range_counters;")
+    w("} tv_range_config_t;")
+    w("")
+    w("typedef struct {")
+    w("    const char *name;")
+    w("    const char *key_hex;         /* bytes rule, or NULL */")
+    w("    const char *key_string;      /* string rule, or NULL */")
+    w("    uint64_t low;")
+    w("    uint64_t high;")
+    w("    const char *domain;          /* NULL = default */")
+    w("} tv_range_invalid_config_t;")
+    w("")
+
+    r_configs = v1r["configs"]
+    for i, cfg in enumerate(r_configs):
+        low = int(cfg["low"])
+        high = int(cfg["high"])
+        capacity = int(cfg["capacity"])
+        assert 0 <= low <= high < 2**63, cfg["name"]
+        assert int(cfg["radix"]) ** int(cfg["m"]) == capacity, cfg["name"]
+        assert 100 <= capacity <= 2**63, cfg["name"]
+        w("static const tv_range_pair_t TV_V1R_%d_PAIRS[] = {" % i)
+        for vec in cfg["vectors"]:
+            n = int(vec["n"])
+            code = int(vec["code"])
+            assert 0 <= n < capacity and low <= code <= high, cfg["name"]
+            w("    { UINT64_C(%d), UINT64_C(%d) }," % (n, code))
+        w("};")
+        # invalid_codes / range_counters are decimal strings; values not
+        # representable in uint64_t ("-1", 2^64) cannot even be passed to
+        # the C API, so the type system covers them — skip them here.
+        inv_repr = []
+        inv_skipped = []
+        for s in cfg.get("invalid_codes", []):
+            v = int(s)
+            if 0 <= v < 2**64:
+                inv_repr.append(v)
+            else:
+                inv_skipped.append(s)
+        if inv_repr:
+            if inv_skipped:
+                w(
+                    "/* %s: invalid codes %s skipped: not representable in"
+                    " uint64_t (covered by the type system) */"
+                    % (cfg["name"], ", ".join(inv_skipped))
+                )
+            w("static const uint64_t TV_V1R_%d_INVALID[] = {" % i)
+            for v in inv_repr:
+                w("    UINT64_C(%d)," % v)
+            w("};")
+        range_repr = []
+        range_skipped = []
+        for s in cfg.get("range_counters", []):
+            v = int(s)
+            if 0 <= v < 2**64:
+                range_repr.append(v)
+            else:
+                range_skipped.append(s)
+        assert capacity in range_repr, cfg["name"]
+        if range_repr:
+            if range_skipped:
+                w(
+                    "/* %s: range counters %s skipped: not representable in"
+                    " uint64_t (covered by the type system) */"
+                    % (cfg["name"], ", ".join(range_skipped))
+                )
+            w("static const uint64_t TV_V1R_%d_RANGE[] = {" % i)
+            for v in range_repr:
+                w("    UINT64_C(%d)," % v)
+            w("};")
+        w("")
+
+    w("static const tv_range_config_t TV_V1R[] = {")
+    for i, cfg in enumerate(r_configs):
+        invalid = (
+            "TV_V1R_%d_INVALID, sizeof TV_V1R_%d_INVALID / sizeof (uint64_t)"
+            % (i, i)
+            if any(0 <= int(s) < 2**64 for s in cfg.get("invalid_codes", []))
+            else "NULL, 0"
+        )
+        rng = (
+            "TV_V1R_%d_RANGE, sizeof TV_V1R_%d_RANGE / sizeof (uint64_t)"
+            % (i, i)
+            if any(0 <= int(s) < 2**64 for s in cfg.get("range_counters", []))
+            else "NULL, 0"
+        )
+        w("    { %s," % c_str(cfg["name"]))
+        w("      %s, %s," % (c_str(cfg.get("key_hex")), c_str(cfg.get("key_string"))))
+        w(
+            "      UINT64_C(%d), UINT64_C(%d), %s,"
+            % (int(cfg["low"]), int(cfg["high"]), c_str(cfg["domain"]))
+        )
+        w(
+            "      %d, %d, UINT64_C(%d),"
+            % (int(cfg["radix"]), int(cfg["m"]), int(cfg["capacity"]))
+        )
+        w(
+            "      TV_V1R_%d_PAIRS, "
+            "sizeof TV_V1R_%d_PAIRS / sizeof (tv_range_pair_t)," % (i, i)
+        )
+        w("      %s," % invalid)
+        w("      %s }," % rng)
+    w("};")
+    w("#define TV_V1R_COUNT (sizeof TV_V1R / sizeof TV_V1R[0])")
+    w("")
+
+    r_invalid_configs = v1r.get("invalid_configs", [])
+    r_invalid_emitted = 0
+    w("/* Every entry must make range construction fail with a config"
+      " error. */")
+    w("static const tv_range_invalid_config_t TV_V1R_INVALID_CONFIGS[] = {")
+    for cfg in r_invalid_configs:
+        low = int(cfg["low"])
+        high = int(cfg["high"])
+        # low/high not representable in uint64_t (e.g. "-1") cannot even be
+        # passed to dealcode_range_new(): the type system covers them.
+        if not (0 <= low < 2**64 and 0 <= high < 2**64):
+            w(
+                "    /* %s skipped: low/high not representable in uint64_t"
+                " (covered by the type system) */" % cfg["name"]
+            )
+            continue
+        w("    { %s," % c_str(cfg["name"]))
+        w("      %s, %s," % (c_str(cfg.get("key_hex")), c_str(cfg.get("key_string"))))
+        w(
+            "      UINT64_C(%d), UINT64_C(%d), %s },"
+            % (low, high, c_str(cfg.get("domain")))
+        )
+        r_invalid_emitted += 1
+    w("};")
+    w("#define TV_V1R_INVALID_CONFIG_COUNT \\")
+    w("    (sizeof TV_V1R_INVALID_CONFIGS / sizeof TV_V1R_INVALID_CONFIGS[0])")
+    w("")
+
     out_path.write_text("\n".join(lines) + "\n")
     print(
         "wrote %s (%d NIST vectors, %d v1 configs, %d invalid configs, "
-        "%d v1c configs, %d v1c invalid configs)"
+        "%d v1c configs, %d v1c invalid configs, %d v1r configs, "
+        "%d v1r invalid configs)"
         % (
             out_path,
             len(nist["vectors"]),
@@ -434,6 +596,8 @@ def main():
             len(invalid_configs),
             len(c_configs),
             len(c_invalid_configs),
+            len(r_configs),
+            r_invalid_emitted,
         )
     )
 

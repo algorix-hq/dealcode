@@ -47,7 +47,7 @@ $(BUILDDIR)/dealcode.o: src/dealcode.c include/dealcode.h src/ff1.h | $(BUILDDIR
 libdealcode.a: $(BUILDDIR)/dealcode.o
 	ar rcs $@ $^
 
-$(BUILDDIR)/vectors.inc: tests/gen_vectors.py ../testvectors/ff1_nist.json ../testvectors/v1.json ../testvectors/v1c.json | $(BUILDDIR)
+$(BUILDDIR)/vectors.inc: tests/gen_vectors.py ../testvectors/ff1_nist.json ../testvectors/v1.json ../testvectors/v1c.json ../testvectors/v1r.json | $(BUILDDIR)
 	$(PYTHON) tests/gen_vectors.py $@
 
 $(BUILDDIR)/test_dealcode: tests/test_dealcode.c $(BUILDDIR)/vectors.inc libdealcode.a include/dealcode.h src/ff1.h

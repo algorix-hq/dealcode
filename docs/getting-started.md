@@ -220,4 +220,6 @@ an existence check or your own check digit).
 If your codes must stay exactly the same length forever — even after the
 code space fills up — see the
 [fixed-length cycling mode](guide/configuration.md#fixed-length-cycling-mode)
-in the configuration guide.
+in the configuration guide. If they must be integers in a range you choose
+(6-digit numbers with no leading zero, say), see the
+[integer range mode](guide/configuration.md#integer-range-mode).

@@ -66,11 +66,15 @@ typedef enum {
                                       NULL required argument. */
     DEALCODE_ERR_RANGE,          /**< encode: counter outside
                                       [0, dealcode_capacity()) (cycling mode:
-                                      outside [0, 2^63)); cycling decode:
-                                      cycle > dealcode_cycle_max_cycle(). */
+                                      outside [0, 2^63); range mode: outside
+                                      [0, dealcode_range_capacity())); cycling
+                                      decode: cycle >
+                                      dealcode_cycle_max_cycle(). */
     DEALCODE_ERR_INVALID_CODE,   /**< decode: input fails length, charset, or
-                                      stage-range validation — the code was
-                                      never issued by this codec. */
+                                      stage-range validation (range mode: an
+                                      integer outside [low, high] or in the
+                                      dead zone) — the code was never issued
+                                      by this codec. */
     DEALCODE_ERR_BUFFER,         /**< encode: output buffer too small (or
                                       NULL). */
     DEALCODE_ERR_CRYPTO,         /**< Unexpected OpenSSL failure. */
@@ -388,6 +392,134 @@ int dealcode_cycle_radix(const dealcode_cycle_t *dc);
  * string owned by the codec. Returns NULL if `dc` is NULL.
  */
 const char *dealcode_cycle_alphabet(const dealcode_cycle_t *dc);
+
+/* ====================================================================== */
+/* Integer range mode (SPEC.md §12, tweak namespace dealcode/v1r/)        */
+/* ====================================================================== */
+
+/**
+ * @brief Opaque range-mode codec handle (SPEC.md §12). Create with
+ * dealcode_range_new(), destroy with dealcode_range_free(). Immutable and
+ * thread-safe after creation, like dealcode_t.
+ *
+ * Codes in this mode are **integers**, not alphabet strings — built for
+ * ranges like [100000, 999999]: every code is a 6-digit number with no
+ * leading zero, safe to store in an integer column or a spreadsheet cell.
+ *
+ * Counters 0 <= n < capacity map bijectively to integer codes in
+ * [low, low + capacity - 1] through a single FF1 call — no loops, no
+ * cycle-walking. capacity is the largest FF1 domain (radix^m with
+ * radix <= 256) that fits inside the range, so it can be slightly smaller
+ * than high - low + 1 (> 96% of it for spans >= 10^5, and exactly it when
+ * the span is an admissible power); the uncovered top slice — the *dead
+ * zone* [low + capacity, high] — is never issued and is rejected by
+ * decode. Applications needing the top of the range exactly should widen
+ * `high` so the capacity covers what they need.
+ */
+typedef struct dealcode_range_st dealcode_range_t;
+
+/**
+ * @brief Range-codec configuration (SPEC.md §12.1). Zero-initialize, then
+ * set fields.
+ *
+ * `key` / `key_len` / `key_string` follow exactly the same rules as
+ * dealcode_config_t (SPEC.md §2.1), including the preset-name guard for
+ * string keys. Constraints on the range, all DEALCODE_ERR_CONFIG at
+ * construction: low <= high <= 2^63 - 1, and
+ * high - low + 1 >= 100 (FF1 structural minimum).
+ */
+typedef struct {
+    const uint8_t *key;        /**< Key material as bytes, or NULL. */
+    size_t key_len;            /**< Length of `key` in bytes. */
+    const char *key_string;    /**< Key material as a NUL-terminated UTF-8
+                                    string, or NULL. */
+    uint64_t low;              /**< Smallest code value (inclusive). */
+    uint64_t high;             /**< Largest range value (inclusive); must be
+                                    <= 2^63 - 1. Codes above
+                                    low + capacity - 1 are never issued. */
+    const char *domain;        /**< Namespace label bound into the FF1 tweak
+                                    ("dealcode/v1r/" + low + "/" + high +
+                                    "/" + domain). At most 255 UTF-8 bytes.
+                                    NULL means "". */
+} dealcode_range_config_t;
+
+/**
+ * @brief Create a range codec.
+ *
+ * @param cfg Configuration; see dealcode_range_config_t. Must not be NULL.
+ * @param out Receives the new handle on success. Must not be NULL.
+ * @return DEALCODE_OK, or DEALCODE_ERR_CONFIG / DEALCODE_ERR_CRYPTO /
+ *         DEALCODE_ERR_NOMEM. On error `*out` is set to NULL.
+ */
+dealcode_err_t dealcode_range_new(const dealcode_range_config_t *cfg,
+                                  dealcode_range_t **out);
+
+/**
+ * @brief Create a range codec, with a human-readable diagnostic on
+ * failure — same errbuf contract as dealcode_new_ex() (empty string on
+ * success, one-line explanation naming the offending field on failure,
+ * DEALCODE_ERRBUF_SIZE recommended, key material never echoed except the
+ * deliberate preset-name-as-key case).
+ */
+dealcode_err_t dealcode_range_new_ex(const dealcode_range_config_t *cfg,
+                                     dealcode_range_t **out,
+                                     char *errbuf, size_t errbuf_len);
+
+/**
+ * @brief Destroy a range codec and wipe its key material. NULL is a
+ * no-op.
+ */
+void dealcode_range_free(dealcode_range_t *dc);
+
+/**
+ * @brief Map counter `n` to its integer code in
+ * [low, low + dealcode_range_capacity(dc) - 1].
+ *
+ * @param dc       Codec handle.
+ * @param n        Counter; must be in [0, dealcode_range_capacity(dc)).
+ * @param code_out Receives the integer code on success.
+ * @return DEALCODE_OK; DEALCODE_ERR_RANGE if `n` is out of range (this
+ *         mode has no staging and no cycles; when the range is exhausted,
+ *         it is exhausted); DEALCODE_ERR_CRYPTO / DEALCODE_ERR_NOMEM on
+ *         internal failure.
+ */
+dealcode_err_t dealcode_range_encode(const dealcode_range_t *dc, uint64_t n,
+                                     uint64_t *code_out);
+
+/**
+ * @brief Map an integer code back to its counter.
+ *
+ * @param dc    Codec handle.
+ * @param code  Integer code.
+ * @param n_out Receives the counter on success.
+ * @return DEALCODE_OK; DEALCODE_ERR_INVALID_CODE if `code` is outside
+ *         [low, high] or in the dead zone [low + capacity, high] (i.e. was
+ *         never issued by this codec); DEALCODE_ERR_CRYPTO /
+ *         DEALCODE_ERR_NOMEM on internal failure.
+ */
+dealcode_err_t dealcode_range_decode(const dealcode_range_t *dc,
+                                     uint64_t code, uint64_t *n_out);
+
+/**
+ * @brief Number of issuable codes: the largest admissible radix^m
+ * <= high - low + 1 (may be exactly 2^63). Counters range over
+ * [0, capacity). The effective capacity is this value, not
+ * high - low + 1 — monitor counter consumption against it (SPEC.md
+ * §12.4). Returns 0 if `dc` is NULL.
+ */
+uint64_t dealcode_range_capacity(const dealcode_range_t *dc);
+
+/** @brief Configured `low` bound. Returns 0 if `dc` is NULL. */
+uint64_t dealcode_range_low(const dealcode_range_t *dc);
+
+/** @brief Configured `high` bound. Returns 0 if `dc` is NULL. */
+uint64_t dealcode_range_high(const dealcode_range_t *dc);
+
+/**
+ * @brief Internal FF1 radix selected per SPEC.md §12.2, in [2, 256];
+ * informational. Returns 0 if `dc` is NULL.
+ */
+int dealcode_range_radix(const dealcode_range_t *dc);
 
 /**
  * @brief Human-readable description of an error code. Never returns NULL.
